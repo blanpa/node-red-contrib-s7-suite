@@ -1,0 +1,127 @@
+<script type="text/javascript">
+  RED.nodes.registerType('s7-config', {
+    category: 'config',
+    defaults: {
+      name: { value: '' },
+      host: { value: '192.168.0.1', required: true },
+      port: { value: 102, required: true, validate: RED.validators.number() },
+      rack: { value: 0, required: true, validate: RED.validators.number() },
+      slot: { value: 1, required: true, validate: RED.validators.number() },
+      plcType: { value: 'S7-1200' },
+      backend: { value: 'nodes7' },
+      localTSAP: { value: '' },
+      remoteTSAP: { value: '' },
+      connectionTimeout: { value: 5000, validate: RED.validators.number() },
+      requestTimeout: { value: 3000, validate: RED.validators.number() },
+      reconnectInterval: { value: 1000, validate: RED.validators.number() },
+      maxReconnectInterval: { value: 30000, validate: RED.validators.number() }
+    },
+    label: function () {
+      return this.name || this.host + ':' + this.port;
+    },
+    oneditprepare: function () {
+      var plcDefaults = {};
+      $.getJSON('s7-suite/plc-defaults', function (data) {
+        plcDefaults = data;
+      });
+      $.getJSON('s7-suite/snap7-available', function (data) {
+        if (!data.available) {
+          $('#snap7-warning').show();
+        }
+      });
+      $('#node-config-input-plcType').on('change', function () {
+        var plcType = $(this).val();
+        if (plcDefaults[plcType] !== undefined) {
+          $('#node-config-input-slot').val(plcDefaults[plcType]);
+        }
+        if (plcType === 'LOGO') {
+          $('.tsap-row').show();
+        } else {
+          $('.tsap-row').hide();
+        }
+      });
+      $('#node-config-input-backend').on('change', function () {
+        if ($(this).val() === 'snap7') {
+          $.getJSON('s7-suite/snap7-available', function (data) {
+            if (!data.available) {
+              $('#snap7-warning').show();
+            } else {
+              $('#snap7-warning').hide();
+            }
+          });
+        } else {
+          $('#snap7-warning').hide();
+        }
+      });
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="s7-config">
+  <div class="form-row">
+    <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-config-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-host"><i class="fa fa-globe"></i> Host</label>
+    <input type="text" id="node-config-input-host" placeholder="192.168.0.1">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
+    <input type="number" id="node-config-input-port" placeholder="102">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-plcType"><i class="fa fa-microchip"></i> PLC Type</label>
+    <select id="node-config-input-plcType">
+      <option value="S7-200">S7-200</option>
+      <option value="S7-300">S7-300</option>
+      <option value="S7-400">S7-400</option>
+      <option value="S7-1200">S7-1200</option>
+      <option value="S7-1500">S7-1500</option>
+      <option value="LOGO">LOGO</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-rack"><i class="fa fa-server"></i> Rack</label>
+    <input type="number" id="node-config-input-rack" placeholder="0">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-slot"><i class="fa fa-th"></i> Slot</label>
+    <input type="number" id="node-config-input-slot" placeholder="1">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-backend"><i class="fa fa-cogs"></i> Backend</label>
+    <select id="node-config-input-backend">
+      <option value="sim">Simulator (no PLC needed)</option>
+      <option value="nodes7">nodes7 (pure JS)</option>
+      <option value="snap7">snap7 (native C)</option>
+    </select>
+  </div>
+  <div id="snap7-warning" class="form-row" style="display:none;">
+    <div class="form-tips"><i class="fa fa-warning"></i> node-snap7 is not installed. Install it with: <code>npm install node-snap7</code></div>
+  </div>
+  <div class="form-row tsap-row" style="display:none;">
+    <label for="node-config-input-localTSAP"><i class="fa fa-exchange"></i> Local TSAP</label>
+    <input type="text" id="node-config-input-localTSAP" placeholder="0x0100">
+  </div>
+  <div class="form-row tsap-row" style="display:none;">
+    <label for="node-config-input-remoteTSAP"><i class="fa fa-exchange"></i> Remote TSAP</label>
+    <input type="text" id="node-config-input-remoteTSAP" placeholder="0x0200">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-connectionTimeout"><i class="fa fa-clock-o"></i> Conn. Timeout (ms)</label>
+    <input type="number" id="node-config-input-connectionTimeout" placeholder="5000">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-requestTimeout"><i class="fa fa-clock-o"></i> Req. Timeout (ms)</label>
+    <input type="number" id="node-config-input-requestTimeout" placeholder="3000">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-reconnectInterval"><i class="fa fa-refresh"></i> Reconnect (ms)</label>
+    <input type="number" id="node-config-input-reconnectInterval" placeholder="1000">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-maxReconnectInterval"><i class="fa fa-refresh"></i> Max Reconnect (ms)</label>
+    <input type="number" id="node-config-input-maxReconnectInterval" placeholder="30000">
+  </div>
+</script>

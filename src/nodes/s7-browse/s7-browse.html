@@ -1,0 +1,83 @@
+<script type="text/javascript">
+  RED.nodes.registerType('s7-browse', {
+    category: 'S7',
+    color: '#4FC3F7',
+    defaults: {
+      name: { value: '' },
+      server: { value: '', type: 's7-config', required: true },
+      scopeDB: { value: true },
+      scopeM: { value: false },
+      scopeI: { value: false },
+      scopeQ: { value: false },
+      maxDbNumber: { value: 999, validate: RED.validators.number() }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-sitemap',
+    paletteLabel: 'S7 Browse',
+    label: function () {
+      return this.name || 'S7 Browse';
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="s7-browse">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+    <input type="text" id="node-input-server">
+  </div>
+  <div class="form-row">
+    <label><i class="fa fa-search"></i> Scope</label>
+  </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeDB" style="width: auto; margin-right: 5px;">
+      Data Blocks (DB)
+    </label>
+  </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeM" style="width: auto; margin-right: 5px;">
+      Merker (M)
+    </label>
+  </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeI" style="width: auto; margin-right: 5px;">
+      Inputs (I)
+    </label>
+  </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeQ" style="width: auto; margin-right: 5px;">
+      Outputs (Q)
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxDbNumber"><i class="fa fa-sort-numeric-asc"></i> Max DB Number</label>
+    <input type="number" id="node-input-maxDbNumber" placeholder="999">
+  </div>
+  <div class="form-tips">
+    <p>Send any message to start browsing. Progress is shown in node status.</p>
+    <p><strong>snap7 backend:</strong> Uses native block listing (fast).</p>
+    <p><strong>nodes7 backend:</strong> Probe-based discovery (slower, rate-limited).</p>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="s7-browse">
+  <p>Discovers the address space of a Siemens S7 PLC.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>Any message triggers the browse operation</dd>
+  </dl>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>Browse result with blocks and areas</dd>
+  </dl>
+</script>

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.js.map
+*.d.ts
+!jest.config.js
+.DS_Store
+*.tgz

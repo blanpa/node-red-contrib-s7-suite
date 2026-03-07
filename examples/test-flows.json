@@ -1,0 +1,1367 @@
+[
+  {
+    "id": "tab-main",
+    "type": "tab",
+    "label": "S7 Suite - Test Flows",
+    "disabled": false,
+    "info": "Comprehensive test flows for node-red-contrib-s7-suite"
+  },
+  {
+    "id": "config-nodes7",
+    "type": "s7-config",
+    "name": "SPS Simulator",
+    "host": "127.0.0.1",
+    "port": 102,
+    "rack": 0,
+    "slot": 1,
+    "plcType": "S7-1200",
+    "backend": "sim",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "comment-header",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "=== S7 Suite Test Flows ===",
+    "info": "PLC: Simulator\nBackend: sim\n\nDiese Flows testen alle Funktionen.\nInitialwerte: DB1,REAL0=23.5, DB1,INT4=42, DB1,BOOL6.0=true, DB1,DINT8=123456",
+    "x": 180,
+    "y": 40
+  },
+  {
+    "id": "comment-read",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 1. READ Tests ---",
+    "info": "",
+    "x": 150,
+    "y": 100
+  },
+  {
+    "id": "inject-read-real",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read DB1 REAL0",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 160,
+    "wires": [
+      [
+        "read-single"
+      ]
+    ]
+  },
+  {
+    "id": "read-single",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Single REAL",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 400,
+    "y": 160,
+    "wires": [
+      [
+        "debug-read-single"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-single",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Single REAL",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 660,
+    "y": 160
+  },
+  {
+    "id": "inject-read-int",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read DB1 INT4",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,INT4"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,INT4",
+    "x": 160,
+    "y": 220,
+    "wires": [
+      [
+        "read-int"
+      ]
+    ]
+  },
+  {
+    "id": "read-int",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read INT",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 380,
+    "y": 220,
+    "wires": [
+      [
+        "debug-read-int"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-int",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: INT",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 640,
+    "y": 220
+  },
+  {
+    "id": "inject-read-bool",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read DB1 BOOL6.0",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BOOL6.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,BOOL6.0",
+    "x": 170,
+    "y": 280,
+    "wires": [
+      [
+        "read-bool"
+      ]
+    ]
+  },
+  {
+    "id": "read-bool",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read BOOL",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 380,
+    "y": 280,
+    "wires": [
+      [
+        "debug-read-bool"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-bool",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: BOOL",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 650,
+    "y": 280
+  },
+  {
+    "id": "inject-read-multi",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read Multi (REAL0,INT4,BOOL6.0)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0 DB1,INT4 DB1,BOOL6.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,REAL0 DB1,INT4 DB1,BOOL6.0",
+    "x": 220,
+    "y": 340,
+    "wires": [
+      [
+        "read-multi"
+      ]
+    ]
+  },
+  {
+    "id": "read-multi",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Multi \u2192 Object",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "object",
+    "x": 420,
+    "y": 340,
+    "wires": [
+      [
+        "debug-read-multi"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-multi",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Multi Object",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 670,
+    "y": 340
+  },
+  {
+    "id": "inject-read-iec",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read IEC: DB1.DBD0",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1.DBD0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1.DBD0",
+    "x": 170,
+    "y": 400,
+    "wires": [
+      [
+        "read-iec"
+      ]
+    ]
+  },
+  {
+    "id": "read-iec",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read IEC Style",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 400,
+    "y": 400,
+    "wires": [
+      [
+        "debug-read-iec"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-iec",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: IEC",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 640,
+    "y": 400
+  },
+  {
+    "id": "inject-read-merker",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read MB0 (Merker)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB0",
+    "x": 170,
+    "y": 460,
+    "wires": [
+      [
+        "read-merker"
+      ]
+    ]
+  },
+  {
+    "id": "read-merker",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Merker Byte",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 400,
+    "y": 460,
+    "wires": [
+      [
+        "debug-read-merker"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-merker",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Merker",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 650,
+    "y": 460
+  },
+  {
+    "id": "inject-read-configured",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Trigger (no topic)",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "x": 160,
+    "y": 520,
+    "wires": [
+      [
+        "read-configured"
+      ]
+    ]
+  },
+  {
+    "id": "read-configured",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Configured Addr",
+    "server": "config-nodes7",
+    "address": "DB1,DINT8",
+    "outputMode": "single",
+    "x": 420,
+    "y": 520,
+    "wires": [
+      [
+        "debug-read-configured"
+      ]
+    ]
+  },
+  {
+    "id": "debug-read-configured",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Configured DINT",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 680,
+    "y": 520
+  },
+  {
+    "id": "comment-write",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 2. WRITE Tests ---",
+    "info": "",
+    "x": 160,
+    "y": 600
+  },
+  {
+    "id": "inject-write-real",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 42.5 \u2192 DB1,REAL0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "42.5",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 190,
+    "y": 660,
+    "wires": [
+      [
+        "write-node"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-int",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 1234 \u2192 DB1,INT4",
+    "props": [
+      {
+        "p": "payload",
+        "v": "1234",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,INT4"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 190,
+    "y": 720,
+    "wires": [
+      [
+        "write-node"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-bool-true",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write true \u2192 DB1,BOOL6.0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "true",
+        "vt": "bool"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BOOL6.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 200,
+    "y": 780,
+    "wires": [
+      [
+        "write-node"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-bool-false",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write false \u2192 DB1,BOOL6.0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "false",
+        "vt": "bool"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BOOL6.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 200,
+    "y": 840,
+    "wires": [
+      [
+        "write-node"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-dint",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 100000 \u2192 DB1,DINT8",
+    "props": [
+      {
+        "p": "payload",
+        "v": "100000",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,DINT8"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 200,
+    "y": 900,
+    "wires": [
+      [
+        "write-node"
+      ]
+    ]
+  },
+  {
+    "id": "write-node",
+    "type": "s7-write",
+    "z": "tab-main",
+    "name": "Write to PLC",
+    "server": "config-nodes7",
+    "address": "",
+    "x": 450,
+    "y": 780,
+    "wires": [
+      [
+        "debug-write"
+      ]
+    ]
+  },
+  {
+    "id": "debug-write",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Write OK (pass-through)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 690,
+    "y": 780
+  },
+  {
+    "id": "inject-write-merker",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 0xFF \u2192 MB0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "255",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 960,
+    "wires": [
+      [
+        "write-merker"
+      ]
+    ]
+  },
+  {
+    "id": "write-merker",
+    "type": "s7-write",
+    "z": "tab-main",
+    "name": "Write Merker",
+    "server": "config-nodes7",
+    "address": "",
+    "x": 450,
+    "y": 960,
+    "wires": [
+      [
+        "debug-write-merker"
+      ]
+    ]
+  },
+  {
+    "id": "debug-write-merker",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Write Merker OK",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 670,
+    "y": 960
+  },
+  {
+    "id": "comment-writeread",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 3. WRITE \u2192 READ Roundtrip ---",
+    "info": "",
+    "x": 200,
+    "y": 1040
+  },
+  {
+    "id": "inject-roundtrip",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 99.9 \u2192 DB1,REAL0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "99.9",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 190,
+    "y": 1100,
+    "wires": [
+      [
+        "roundtrip-write"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-write",
+    "type": "s7-write",
+    "z": "tab-main",
+    "name": "Write",
+    "server": "config-nodes7",
+    "address": "",
+    "x": 410,
+    "y": 1100,
+    "wires": [
+      [
+        "roundtrip-delay"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-delay",
+    "type": "delay",
+    "z": "tab-main",
+    "name": "Wait 500ms",
+    "pauseType": "delay",
+    "timeout": "500",
+    "timeoutUnits": "milliseconds",
+    "rate": "1",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "x": 430,
+    "y": 1160,
+    "wires": [
+      [
+        "roundtrip-read"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-read",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read back",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 420,
+    "y": 1220,
+    "wires": [
+      [
+        "roundtrip-check"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-check",
+    "type": "function",
+    "z": "tab-main",
+    "name": "Verify \u2248 99.9",
+    "func": "const written = 99.9;\nconst read = msg.payload;\nconst diff = Math.abs(read - written);\nif (diff < 0.1) {\n    msg.result = 'PASS';\n    msg.detail = `Written: ${written}, Read: ${read}, Diff: ${diff.toFixed(4)}`;\n} else {\n    msg.result = 'FAIL';\n    msg.detail = `Written: ${written}, Read: ${read}, Diff: ${diff.toFixed(4)}`;\n}\nnode.status({fill: msg.result === 'PASS' ? 'green' : 'red', shape: 'dot', text: msg.result});\nreturn msg;",
+    "outputs": 1,
+    "x": 650,
+    "y": 1220,
+    "wires": [
+      [
+        "debug-roundtrip"
+      ]
+    ]
+  },
+  {
+    "id": "debug-roundtrip",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Roundtrip Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 880,
+    "y": 1220
+  },
+  {
+    "id": "comment-trigger",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 4. TRIGGER Tests ---",
+    "info": "",
+    "x": 160,
+    "y": 1300
+  },
+  {
+    "id": "trigger-any",
+    "type": "s7-trigger",
+    "z": "tab-main",
+    "name": "Poll DB1,REAL0 (any change)",
+    "server": "config-nodes7",
+    "address": "DB1,REAL0",
+    "interval": 2000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 200,
+    "y": 1360,
+    "wires": [
+      [
+        "debug-trigger-any"
+      ]
+    ]
+  },
+  {
+    "id": "debug-trigger-any",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Trigger: Any Change",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 480,
+    "y": 1360
+  },
+  {
+    "id": "trigger-rising",
+    "type": "s7-trigger",
+    "z": "tab-main",
+    "name": "Poll DB1,BOOL6.0 (rising edge)",
+    "server": "config-nodes7",
+    "address": "DB1,BOOL6.0",
+    "interval": 1000,
+    "edgeMode": "rising",
+    "deadband": 0,
+    "x": 210,
+    "y": 1420,
+    "wires": [
+      [
+        "debug-trigger-rising"
+      ]
+    ]
+  },
+  {
+    "id": "debug-trigger-rising",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Trigger: Rising Edge",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 490,
+    "y": 1420
+  },
+  {
+    "id": "trigger-falling",
+    "type": "s7-trigger",
+    "z": "tab-main",
+    "name": "Poll DB1,BOOL6.0 (falling edge)",
+    "server": "config-nodes7",
+    "address": "DB1,BOOL6.0",
+    "interval": 1000,
+    "edgeMode": "falling",
+    "deadband": 0,
+    "x": 210,
+    "y": 1480,
+    "wires": [
+      [
+        "debug-trigger-falling"
+      ]
+    ]
+  },
+  {
+    "id": "debug-trigger-falling",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Trigger: Falling Edge",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 490,
+    "y": 1480
+  },
+  {
+    "id": "trigger-deadband",
+    "type": "s7-trigger",
+    "z": "tab-main",
+    "name": "Poll DB1,REAL0 (deadband 5.0)",
+    "server": "config-nodes7",
+    "address": "DB1,REAL0",
+    "interval": 2000,
+    "edgeMode": "any",
+    "deadband": 5,
+    "x": 210,
+    "y": 1540,
+    "wires": [
+      [
+        "debug-trigger-deadband"
+      ]
+    ]
+  },
+  {
+    "id": "debug-trigger-deadband",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Trigger: Deadband > 5.0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 500,
+    "y": 1540
+  },
+  {
+    "id": "trigger-multi",
+    "type": "s7-trigger",
+    "z": "tab-main",
+    "name": "Poll Multi (REAL0, INT4)",
+    "server": "config-nodes7",
+    "address": "DB1,REAL0 DB1,INT4",
+    "interval": 3000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 200,
+    "y": 1600,
+    "wires": [
+      [
+        "debug-trigger-multi"
+      ]
+    ]
+  },
+  {
+    "id": "debug-trigger-multi",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Trigger: Multi Addr",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 480,
+    "y": 1600
+  },
+  {
+    "id": "comment-browse",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 5. BROWSE Tests ---",
+    "info": "",
+    "x": 160,
+    "y": 1680
+  },
+  {
+    "id": "inject-browse-db",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Browse DBs only",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 160,
+    "y": 1740,
+    "wires": [
+      [
+        "browse-db"
+      ]
+    ]
+  },
+  {
+    "id": "browse-db",
+    "type": "s7-browse",
+    "z": "tab-main",
+    "name": "Browse DBs",
+    "server": "config-nodes7",
+    "scopeDB": true,
+    "scopeM": false,
+    "scopeI": false,
+    "scopeQ": false,
+    "maxDbNumber": 50,
+    "x": 390,
+    "y": 1740,
+    "wires": [
+      [
+        "debug-browse-db"
+      ]
+    ]
+  },
+  {
+    "id": "debug-browse-db",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Browse: DBs",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 630,
+    "y": 1740
+  },
+  {
+    "id": "inject-browse-all",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Browse All (DB+M+I+Q)",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 190,
+    "y": 1800,
+    "wires": [
+      [
+        "browse-all"
+      ]
+    ]
+  },
+  {
+    "id": "browse-all",
+    "type": "s7-browse",
+    "z": "tab-main",
+    "name": "Browse All Areas",
+    "server": "config-nodes7",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 20,
+    "x": 410,
+    "y": 1800,
+    "wires": [
+      [
+        "browse-format"
+      ]
+    ]
+  },
+  {
+    "id": "browse-format",
+    "type": "function",
+    "z": "tab-main",
+    "name": "Format Result",
+    "func": "const r = msg.payload;\nlet summary = '=== Browse Result ===\\n';\nsummary += `Blocks found: ${r.blocks ? r.blocks.length : 0}\\n`;\nif (r.blocks) {\n    r.blocks.forEach(b => {\n        summary += `  ${b.blockType} ${b.blockNumber}: ${b.sizeData} bytes\\n`;\n    });\n}\nsummary += `Areas found: ${r.areas ? r.areas.length : 0}\\n`;\nif (r.areas) {\n    r.areas.forEach(a => {\n        summary += `  ${a.area}: ${a.size} bytes\\n`;\n    });\n}\nmsg.summary = summary;\nnode.warn(summary);\nreturn msg;",
+    "outputs": 1,
+    "x": 660,
+    "y": 1800,
+    "wires": [
+      [
+        "debug-browse-all"
+      ]
+    ]
+  },
+  {
+    "id": "debug-browse-all",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Browse: All Areas",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 890,
+    "y": 1800
+  },
+  {
+    "id": "comment-stress",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 6. Stress & Error Tests ---",
+    "info": "",
+    "x": 190,
+    "y": 1880
+  },
+  {
+    "id": "inject-rapid",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Rapid 10x Read",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 1940,
+    "wires": [
+      [
+        "rapid-loop"
+      ]
+    ]
+  },
+  {
+    "id": "rapid-loop",
+    "type": "function",
+    "z": "tab-main",
+    "name": "Send 10 msgs",
+    "func": "for (let i = 0; i < 10; i++) {\n    node.send({topic: 'DB1,REAL0', _burst: i});\n}\nreturn null;",
+    "outputs": 1,
+    "x": 390,
+    "y": 1940,
+    "wires": [
+      [
+        "read-rapid"
+      ]
+    ]
+  },
+  {
+    "id": "read-rapid",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read (queued)",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 590,
+    "y": 1940,
+    "wires": [
+      [
+        "debug-rapid"
+      ]
+    ]
+  },
+  {
+    "id": "debug-rapid",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Rapid Read Results",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 810,
+    "y": 1940
+  },
+  {
+    "id": "inject-bad-addr",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Bad Address",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "INVALID_ADDRESS"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "INVALID_ADDRESS",
+    "x": 150,
+    "y": 2000,
+    "wires": [
+      [
+        "read-bad"
+      ]
+    ]
+  },
+  {
+    "id": "read-bad",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read (should error)",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 410,
+    "y": 2000,
+    "wires": [
+      [
+        "debug-bad"
+      ]
+    ]
+  },
+  {
+    "id": "debug-bad",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Error Expected",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 650,
+    "y": 2000
+  },
+  {
+    "id": "inject-write-configured",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write configured addr",
+    "props": [
+      {
+        "p": "payload",
+        "v": "77.7",
+        "vt": "num"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 180,
+    "y": 2060,
+    "wires": [
+      [
+        "write-configured"
+      ]
+    ]
+  },
+  {
+    "id": "write-configured",
+    "type": "s7-write",
+    "z": "tab-main",
+    "name": "Write (addr in config)",
+    "server": "config-nodes7",
+    "address": "DB1,REAL0",
+    "x": 430,
+    "y": 2060,
+    "wires": [
+      [
+        "debug-write-configured"
+      ]
+    ]
+  },
+  {
+    "id": "debug-write-configured",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Write Config OK",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 670,
+    "y": 2060
+  },
+  {
+    "id": "comment-word",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 7. Data Types Test ---",
+    "info": "",
+    "x": 170,
+    "y": 2140
+  },
+  {
+    "id": "inject-write-word",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 0xABCD \u2192 DB1,WORD12",
+    "props": [
+      {
+        "p": "payload",
+        "v": "43981",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,WORD12"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 210,
+    "y": 2200,
+    "wires": [
+      [
+        "write-datatype"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-dword",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 0x12345678 \u2192 DB1,DWORD14",
+    "props": [
+      {
+        "p": "payload",
+        "v": "305419896",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,DWORD14"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 230,
+    "y": 2260,
+    "wires": [
+      [
+        "write-datatype"
+      ]
+    ]
+  },
+  {
+    "id": "inject-write-byte",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Write 0x42 \u2192 DB1,BYTE18",
+    "props": [
+      {
+        "p": "payload",
+        "v": "66",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BYTE18"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 200,
+    "y": 2320,
+    "wires": [
+      [
+        "write-datatype"
+      ]
+    ]
+  },
+  {
+    "id": "write-datatype",
+    "type": "s7-write",
+    "z": "tab-main",
+    "name": "Write Datatype",
+    "server": "config-nodes7",
+    "address": "",
+    "x": 460,
+    "y": 2260,
+    "wires": [
+      [
+        "read-datatype-back"
+      ]
+    ]
+  },
+  {
+    "id": "read-datatype-back",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read back",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "single",
+    "x": 640,
+    "y": 2260,
+    "wires": [
+      [
+        "debug-datatype"
+      ]
+    ]
+  },
+  {
+    "id": "debug-datatype",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Datatype Roundtrip",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 850,
+    "y": 2260
+  }
+]
