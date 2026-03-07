@@ -9,55 +9,24 @@
     },
     inputs: 1,
     outputs: 1,
-    icon: 'font-awesome/fa-upload',
+    icon: 's7-suite.svg',
     paletteLabel: 'S7 Write',
     label: function () {
       return this.name || this.address || 'S7 Write';
     },
     oneditprepare: function () {
-      $('#s7w-browse-btn').on('click', function () {
-        var serverId = $('#node-input-server').val();
-        if (!serverId) { RED.notify('Select a server first', 'warning'); return; }
-        $('#s7w-browse-status').text('Browsing...').show();
-        $('#s7w-browse-results').empty();
-        $('#s7w-browse-dialog').show();
-        $.getJSON('s7-suite/browse/' + serverId, function (data) {
-          $('#s7w-browse-status').hide();
-          var addresses = data.addresses || [];
-          function render(f) {
-            var tbl = $('<table style="width:100%;border-collapse:collapse;font-size:12px;"></table>');
-            tbl.append('<tr style="background:#eee;"><th style="padding:4px;text-align:left;">Address</th><th style="padding:4px;">Type</th><th style="padding:4px;">Info</th><th style="padding:4px;"></th></tr>');
-            var count = 0;
-            addresses.forEach(function (a) {
-              if (f && a.address.toLowerCase().indexOf(f.toLowerCase()) === -1 && a.type.toLowerCase().indexOf(f.toLowerCase()) === -1 && (!a.info || a.info.toLowerCase().indexOf(f.toLowerCase()) === -1)) return;
-              if (count++ > 200) return;
-              var tr = $('<tr style="border-bottom:1px solid #ddd;cursor:pointer;"></tr>');
-              tr.append('<td style="padding:3px 4px;font-family:monospace;">' + a.address + '</td>');
-              tr.append('<td style="padding:3px 4px;text-align:center;">' + a.type + '</td>');
-              tr.append('<td style="padding:3px 4px;color:#666;">' + (a.info || '') + '</td>');
-              var btn = $('<button class="red-ui-button red-ui-button-small" style="padding:1px 8px;">Select</button>');
-              btn.on('click', function (e) {
-                e.stopPropagation();
-                $('#node-input-address').val(a.address);
-                $('#s7w-browse-dialog').hide();
-              });
-              var td = $('<td style="padding:3px 4px;"></td>').append(btn);
-              tr.append(td);
-              tr.on('click', function () { btn.trigger('click'); });
-              tbl.append(tr);
-            });
-            if (count === 0) tbl.append('<tr><td colspan="4" style="padding:8px;color:#999;">No matches</td></tr>');
-            if (count > 200) tbl.append('<tr><td colspan="4" style="padding:8px;color:#999;">' + (addresses.length - 200) + ' more... use filter</td></tr>');
-            $('#s7w-browse-results').empty().append(tbl);
-          }
-          render('');
-          $('#s7w-browse-filter').off('input').on('input', function () { render($(this).val()); });
-        }).fail(function (xhr) {
-          var msg = xhr.responseJSON ? xhr.responseJSON.error : 'Browse failed';
-          $('#s7w-browse-status').text(msg).css('color', 'red');
-        });
+      s7SuiteStatusDot('#node-input-server', '#s7w-status-dot');
+      s7SuiteBrowseDialog({
+        btnId: '#s7w-browse-btn',
+        closeId: '#s7w-browse-close',
+        filterId: '#s7w-browse-filter',
+        statusId: '#s7w-browse-status',
+        resultsId: '#s7w-browse-results',
+        dialogId: '#s7w-browse-dialog',
+        serverId: '#node-input-server',
+        addressId: '#node-input-address',
+        mode: 'replace'
       });
-      $('#s7w-browse-close').on('click', function () { $('#s7w-browse-dialog').hide(); });
     }
   });
 </script>
@@ -69,7 +38,10 @@
   </div>
   <div class="form-row">
     <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
-    <input type="text" id="node-input-server">
+    <div style="display:inline-flex;width:70%;align-items:center;">
+      <input type="text" id="node-input-server" style="flex:1;">
+      <span id="s7w-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
+    </div>
   </div>
   <div class="form-row">
     <label for="node-input-address"><i class="fa fa-map-marker"></i> Address</label>

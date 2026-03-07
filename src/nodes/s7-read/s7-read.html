@@ -11,59 +11,59 @@
     },
     inputs: 1,
     outputs: 1,
-    icon: 'font-awesome/fa-download',
+    icon: 's7-suite.svg',
     paletteLabel: 'S7 Read',
     label: function () {
       return this.name || this.address || 'S7 Read';
     },
     oneditprepare: function () {
       var node = this;
-      $('#s7-browse-btn').on('click', function () {
-        var serverId = $('#node-input-server').val();
-        if (!serverId) { RED.notify('Select a server first', 'warning'); return; }
-        $('#s7-browse-status').text('Browsing...').show();
-        $('#s7-browse-results').empty();
-        $('#s7-browse-dialog').show();
-        $.getJSON('s7-suite/browse/' + serverId, function (data) {
-          $('#s7-browse-status').hide();
-          var filter = '';
-          var addresses = data.addresses || [];
-          function render(f) {
-            var tbl = $('<table style="width:100%;border-collapse:collapse;font-size:12px;"></table>');
-            tbl.append('<tr style="background:#eee;"><th style="padding:4px;text-align:left;">Address</th><th style="padding:4px;">Type</th><th style="padding:4px;">Info</th><th style="padding:4px;"></th></tr>');
-            var count = 0;
-            addresses.forEach(function (a) {
-              if (f && a.address.toLowerCase().indexOf(f.toLowerCase()) === -1 && a.type.toLowerCase().indexOf(f.toLowerCase()) === -1 && (!a.info || a.info.toLowerCase().indexOf(f.toLowerCase()) === -1)) return;
-              if (count++ > 200) return;
-              var tr = $('<tr style="border-bottom:1px solid #ddd;cursor:pointer;"></tr>');
-              tr.append('<td style="padding:3px 4px;font-family:monospace;">' + a.address + '</td>');
-              tr.append('<td style="padding:3px 4px;text-align:center;">' + a.type + '</td>');
-              tr.append('<td style="padding:3px 4px;color:#666;">' + (a.info || '') + '</td>');
-              var btn = $('<button class="red-ui-button red-ui-button-small" style="padding:1px 8px;">Select</button>');
-              btn.on('click', function (e) {
-                e.stopPropagation();
-                var cur = $('#node-input-address').val().trim();
-                if (cur) { cur += ' '; }
-                $('#node-input-address').val(cur + a.address);
-                RED.notify('Added: ' + a.address, 'success');
-              });
-              var td = $('<td style="padding:3px 4px;"></td>').append(btn);
-              tr.append(td);
-              tr.on('click', function () { btn.trigger('click'); });
-              tbl.append(tr);
-            });
-            if (count === 0) tbl.append('<tr><td colspan="4" style="padding:8px;color:#999;">No matches</td></tr>');
-            if (count > 200) tbl.append('<tr><td colspan="4" style="padding:8px;color:#999;">' + (addresses.length - 200) + ' more... use filter</td></tr>');
-            $('#s7-browse-results').empty().append(tbl);
-          }
-          render('');
-          $('#s7-browse-filter').off('input').on('input', function () { render($(this).val()); });
-        }).fail(function (xhr) {
-          var msg = xhr.responseJSON ? xhr.responseJSON.error : 'Browse failed';
-          $('#s7-browse-status').text(msg).css('color', 'red');
-        });
+      s7SuiteStatusDot('#node-input-server', '#s7r-status-dot');
+
+      // editableList for addresses
+      var addrList = $('#s7r-address-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
+        addButton: 'Add address',
+        removable: true,
+        sortable: true,
+        addItem: function (row, index, data) {
+          var val = data.address || '';
+          var input = $('<input type="text" placeholder="DB1,REAL0 or DB1.DBD0" style="width:100%;">').val(val);
+          row.append(input);
+        }
       });
-      $('#s7-browse-close').on('click', function () { $('#s7-browse-dialog').hide(); });
+
+      // Load existing addresses
+      var existing = (node.address || '').trim();
+      if (existing) {
+        var parts = existing.split(/\s+/);
+        parts.forEach(function (a) {
+          if (a) addrList.editableList('addItem', { address: a });
+        });
+      }
+
+      // Browse dialog - appends to list
+      s7SuiteBrowseDialog({
+        btnId: '#s7r-browse-btn',
+        closeId: '#s7r-browse-close',
+        filterId: '#s7r-browse-filter',
+        statusId: '#s7r-browse-status',
+        resultsId: '#s7r-browse-results',
+        dialogId: '#s7r-browse-dialog',
+        serverId: '#node-input-server',
+        addressId: null,
+        mode: 'list',
+        listRef: addrList
+      });
+    },
+    oneditsave: function () {
+      // Collect addresses from editableList back to space-separated string
+      var items = $('#s7r-address-list').editableList('items');
+      var addresses = [];
+      items.each(function () {
+        var val = $(this).find('input').val();
+        if (val && val.trim()) addresses.push(val.trim());
+      });
+      this.address = addresses.join(' ');
     }
   });
 </script>
@@ -75,13 +75,18 @@
   </div>
   <div class="form-row">
     <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
-    <input type="text" id="node-input-server">
+    <div style="display:inline-flex;width:70%;align-items:center;">
+      <input type="text" id="node-input-server" style="flex:1;">
+      <span id="s7r-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
+    </div>
   </div>
   <div class="form-row">
-    <label for="node-input-address"><i class="fa fa-map-marker"></i> Address</label>
-    <div style="display:inline-flex;width:70%;">
-      <input type="text" id="node-input-address" placeholder="DB1,REAL0 or DB1.DBD0" style="flex:1;">
-      <button type="button" id="s7-browse-btn" class="red-ui-button" style="margin-left:4px;" title="Browse PLC addresses"><i class="fa fa-search"></i></button>
+    <label style="vertical-align:top;"><i class="fa fa-map-marker"></i> Addresses</label>
+    <div style="display:inline-block;width:70%;">
+      <div style="margin-bottom:4px;">
+        <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
+      </div>
+      <ol id="s7r-address-list"></ol>
     </div>
   </div>
   <div class="form-row">
@@ -91,17 +96,19 @@
       <option value="object">Object (key=address)</option>
     </select>
   </div>
-  <div id="s7-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
+  <!-- Hidden field to store address for node-red -->
+  <input type="hidden" id="node-input-address">
+  <div id="s7r-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <b><i class="fa fa-sitemap"></i> PLC Address Browser</b>
-      <button type="button" id="s7-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      <button type="button" id="s7r-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
     </div>
-    <input type="text" id="s7-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
-    <div id="s7-browse-status" style="padding:8px;color:#666;display:none;"></div>
-    <div id="s7-browse-results" style="max-height:300px;overflow-y:auto;"></div>
+    <input type="text" id="s7r-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
+    <div id="s7r-browse-status" style="padding:8px;color:#666;display:none;"></div>
+    <div id="s7r-browse-results" style="max-height:300px;overflow-y:auto;"></div>
   </div>
   <div class="form-tips">
-    <p>Address can be set via <code>msg.topic</code>. Multiple addresses: space-separated.</p>
+    <p>Address can be set via <code>msg.topic</code>. Use the Browse button to discover PLC addresses.</p>
     <p>Supports nodes7 style (<code>DB1,REAL0</code>) and IEC style (<code>DB1.DBD0</code>).</p>
   </div>
 </script>

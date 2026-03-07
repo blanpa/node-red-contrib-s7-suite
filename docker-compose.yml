@@ -1,0 +1,15 @@
+services:
+  node-red:
+    build: .
+    image: node-red-s7-suite
+    container_name: node-red-s7-suite
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    volumes:
+      - node-red-data:/data
+    environment:
+      - TZ=Europe/Berlin
+
+volumes:
+  node-red-data:

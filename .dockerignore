@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.git/
+.claude/
+*.tgz
+*.md
+.eslintrc.json
+.prettierrc
+jest.config.js
+test/
+.DS_Store

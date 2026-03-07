@@ -13,10 +13,13 @@
     },
     inputs: 1,
     outputs: 1,
-    icon: 'font-awesome/fa-sitemap',
+    icon: 's7-suite.svg',
     paletteLabel: 'S7 Browse',
     label: function () {
       return this.name || 'S7 Browse';
+    },
+    oneditprepare: function () {
+      s7SuiteStatusDot('#node-input-server', '#s7b-status-dot');
     }
   });
 </script>
@@ -28,7 +31,10 @@
   </div>
   <div class="form-row">
     <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
-    <input type="text" id="node-input-server">
+    <div style="display:inline-flex;width:70%;align-items:center;">
+      <input type="text" id="node-input-server" style="flex:1;">
+      <span id="s7b-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
+    </div>
   </div>
   <div class="form-row">
     <label><i class="fa fa-search"></i> Scope</label>

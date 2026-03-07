@@ -21,7 +21,7 @@
   "main": "dist/nodes/index.js",
   "scripts": {
     "build": "tsc && npm run copy-html",
-    "copy-html": "copyfiles -u 1 \"src/nodes/**/*.html\" dist/",
+    "copy-html": "copyfiles -u 1 \"src/nodes/**/*.html\" dist/ && copyfiles -u 1 \"src/icons/*\" dist/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/s7-config/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/s7-read/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/s7-write/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/s7-trigger/ && copyfiles -u 1 \"src/icons/*\" dist/nodes/s7-browse/",
     "test": "jest --coverage",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'test/**/*.ts' --fix",

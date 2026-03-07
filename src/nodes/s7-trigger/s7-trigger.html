@@ -12,10 +12,24 @@
     },
     inputs: 0,
     outputs: 1,
-    icon: 'font-awesome/fa-bolt',
+    icon: 's7-suite.svg',
     paletteLabel: 'S7 Trigger',
     label: function () {
       return this.name || this.address || 'S7 Trigger';
+    },
+    oneditprepare: function () {
+      s7SuiteStatusDot('#node-input-server', '#s7t-status-dot');
+      s7SuiteBrowseDialog({
+        btnId: '#s7t-browse-btn',
+        closeId: '#s7t-browse-close',
+        filterId: '#s7t-browse-filter',
+        statusId: '#s7t-browse-status',
+        resultsId: '#s7t-browse-results',
+        dialogId: '#s7t-browse-dialog',
+        serverId: '#node-input-server',
+        addressId: '#node-input-address',
+        mode: 'replace'
+      });
     }
   });
 </script>
@@ -27,11 +41,17 @@
   </div>
   <div class="form-row">
     <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
-    <input type="text" id="node-input-server">
+    <div style="display:inline-flex;width:70%;align-items:center;">
+      <input type="text" id="node-input-server" style="flex:1;">
+      <span id="s7t-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
+    </div>
   </div>
   <div class="form-row">
     <label for="node-input-address"><i class="fa fa-map-marker"></i> Address</label>
-    <input type="text" id="node-input-address" placeholder="DB1,BOOL0.0">
+    <div style="display:inline-flex;width:70%;">
+      <input type="text" id="node-input-address" placeholder="DB1,BOOL0.0" style="flex:1;">
+      <button type="button" id="s7t-browse-btn" class="red-ui-button" style="margin-left:4px;" title="Browse PLC addresses"><i class="fa fa-search"></i></button>
+    </div>
   </div>
   <div class="form-row">
     <label for="node-input-interval"><i class="fa fa-clock-o"></i> Interval (ms)</label>
@@ -49,9 +69,19 @@
     <label for="node-input-deadband"><i class="fa fa-sliders"></i> Deadband</label>
     <input type="number" id="node-input-deadband" placeholder="0" step="0.1">
   </div>
+  <div id="s7t-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <b><i class="fa fa-sitemap"></i> PLC Address Browser</b>
+      <button type="button" id="s7t-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+    </div>
+    <input type="text" id="s7t-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
+    <div id="s7t-browse-status" style="padding:8px;color:#666;display:none;"></div>
+    <div id="s7t-browse-results" style="max-height:300px;overflow-y:auto;"></div>
+  </div>
   <div class="form-tips">
     <p>Polls the specified address(es) and emits a message when the value changes.</p>
     <p>Edge mode applies to boolean values. Deadband applies to numeric values.</p>
+    <p><b>Dynamic sim values:</b> DB1,REAL20 (sine), DB1,DINT24 (counter), DB1,REAL28 (sawtooth).</p>
   </div>
 </script>
 

@@ -67,6 +67,15 @@ export = function (RED: NodeAPI): void {
     res.json(PLC_DEFAULT_SLOTS);
   });
 
+  RED.httpAdmin.get('/s7-suite/connection-state/:id', (req, res) => {
+    const configNode = RED.nodes.getNode(req.params.id) as S7ConfigNode | null;
+    if (!configNode) {
+      res.json({ state: 'unknown' });
+      return;
+    }
+    res.json({ state: configNode.connectionManager.getState() });
+  });
+
   // Browse endpoint: returns address list from connected PLC
   RED.httpAdmin.get('/s7-suite/browse/:id', async (req, res) => {
     const configNode = RED.nodes.getNode(req.params.id) as S7ConfigNode | null;

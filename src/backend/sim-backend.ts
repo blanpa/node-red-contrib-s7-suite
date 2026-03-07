@@ -7,6 +7,8 @@ import { byteLength, readValue, writeValue } from '../core/data-converter';
 export class SimBackend implements IS7Backend {
   private connected = false;
   private memory: Map<string, Buffer> = new Map();
+  private startTime = Date.now();
+  private counter = 0;
 
   async connect(_config: S7ConnectionConfig): Promise<void> {
     // Initialize simulated DB1 with 100 bytes
@@ -37,7 +39,22 @@ export class SimBackend implements IS7Backend {
     return this.connected;
   }
 
+  private updateDynamicValues(): void {
+    const db1 = this.memory.get('DB:1');
+    if (!db1 || db1.length < 32) return;
+
+    const elapsed = (Date.now() - this.startTime) / 1000;
+    // DB1,REAL20 = sine wave (-10..+10), period ~6s
+    db1.writeFloatBE(Math.sin(elapsed * Math.PI / 3) * 10, 20);
+    // DB1,DINT24 = incrementing counter
+    this.counter++;
+    db1.writeInt32BE(this.counter, 24);
+    // DB1,REAL28 = sawtooth 0..100, period ~10s
+    db1.writeFloatBE((elapsed % 10) * 10, 28);
+  }
+
   async read(items: S7ReadItem[]): Promise<S7ReadResult[]> {
+    this.updateDynamicValues();
     return items.map((item) => {
       try {
         const addr = item.address;
