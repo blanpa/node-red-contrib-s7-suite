@@ -37,10 +37,11 @@ Existing Node-RED packages for S7 communication each lock you into a single comm
 ## Features
 
 - **s7-config** — Connection configuration with backend selection and auto-reconnect
-- **s7-read** — Read multiple addresses at once, output as single messages or combined object
+- **s7-read** — Read PLC data in multiple output modes: single value, combined object, raw buffer, struct, or bit array
 - **s7-write** — Write data to PLC memory areas with dynamic address via `msg.topic`
 - **s7-trigger** — Polling with edge detection and deadband filtering
 - **s7-browse** — Discover PLC data blocks with category filtering and search
+- **s7-control** — CPU control actions: Start, Stop, Cold Start (snap7 backend only)
 
 ### Supported PLCs
 
@@ -53,6 +54,63 @@ S7-200, S7-300, S7-400, S7-1200, S7-1500, LOGO!
 | nodes7 | `nodes7` | Pure JavaScript, no native compilation needed |
 | snap7 | `node-snap7` | Native library via Snap7, optional |
 | sim | built-in | Simulation backend for development and testing |
+
+### Node API
+
+#### s7-read
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `msg.topic` | string | Overrides configured address |
+| `msg.schema` | object[] | Overrides struct schema (struct mode only) |
+| `msg.payload` | any | Output: read value(s) |
+
+**Output modes:**
+- **single** — `msg.payload` = single value (or object if multiple addresses)
+- **object** — `msg.payload` = `{ "DB1,REAL0": 23.5, "DB1,INT4": 100 }`
+- **buffer** — `msg.payload` = raw `Buffer` of the requested memory area
+- **struct** — `msg.payload` = `{ fieldName: value, ... }` based on schema definition
+- **bits** — `msg.payload` = `boolean[]` with each bit unpacked (LSB first per byte)
+
+#### s7-write
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `msg.topic` | string | Overrides configured address |
+| `msg.payload` | any | Value to write (type must match address data type) |
+
+On success, the input message is passed through to the output.
+
+#### s7-trigger
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `msg.payload` | any | Output: new value |
+| `msg.topic` | string | Output: address that changed |
+| `msg.oldValue` | any | Output: previous value |
+
+#### s7-browse
+
+Send any message to trigger. Output `msg.payload` contains `{ blocks, areas, addresses, cpuInfo? }`.
+
+#### s7-control
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `msg.payload` | string | Input: action override (`start`, `stop`, `coldstart`, `reset`) |
+| `msg.payload` | object | Output: `{ action, success: true }` |
+
+Requires the **snap7** backend. Send a message to execute the configured action, or override via `msg.payload`.
+
+## Troubleshooting
+
+**node-snap7 not installed** — The snap7 backend requires the native `node-snap7` package. Install it with `npm install node-snap7`. If compilation fails, ensure build tools are installed (`build-essential` on Debian/Ubuntu, Xcode CLI tools on macOS).
+
+**Connection timeout** — Verify the PLC IP is reachable (`ping <ip>`). Check that rack/slot values match your hardware. For S7-1200/1500, ensure "Permit access with PUT/GET" is enabled in the PLC settings.
+
+**LOGO connection** — LOGO PLCs require TSAP-based connections. Set PLC Type to "LOGO" and configure Local TSAP (e.g. `0x0100`) and Remote TSAP (e.g. `0x0200`).
+
+**Address parse errors** — Verify address format. Examples: `DB1,REAL0`, `DB1.DBD0`, `MW4`, `I0.1`, `QB0`. See the address format table above.
 
 ## Installation
 
@@ -73,7 +131,7 @@ npm install node-red-contrib-s7-suite
 docker compose up -d
 ```
 
-Node-RED is then available at [http://localhost:1880](http://localhost:1880) with the S7 nodes pre-installed.
+Node-RED is then available at [http://localhost:1885](http://localhost:1885) with the S7 nodes pre-installed.
 
 ## Development Setup
 
@@ -85,7 +143,7 @@ Node-RED is then available at [http://localhost:1880](http://localhost:1880) wit
 ### Getting Started
 
 ```bash
-git clone https://github.com/<your-org>/node-red-contrib-s7-suite.git
+git clone https://github.com/lagramm/node-red-contrib-s7-suite.git
 cd node-red-contrib-s7-suite
 npm install
 npm run build
@@ -112,7 +170,9 @@ src/
 │   ├── s7-read/
 │   ├── s7-write/
 │   ├── s7-trigger/
-│   └── s7-browse/
+│   ├── s7-browse/
+│   ├── s7-control/
+│   └── shared/      # Shared helpers (status updater)
 ├── types/          # TypeScript type definitions
 ├── utils/          # Error codes and helpers
 └── icons/          # Node icons

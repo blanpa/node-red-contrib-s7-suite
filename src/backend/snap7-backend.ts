@@ -1,22 +1,9 @@
 import { IS7Backend } from './s7-backend.interface';
 import { S7ConnectionConfig } from '../types/s7-connection';
-import { S7ReadItem, S7ReadResult, S7WriteItem } from '../types/s7-address';
+import { S7ReadItem, S7ReadResult, S7WriteItem, AREA_CODE_MAP } from '../types/s7-address';
 import { S7BlockInfo, S7BlockList, S7BlockType } from '../types/s7-browse';
 import { byteLength, readValue, writeValue } from '../core/data-converter';
 import { S7Error, S7ErrorCode } from '../utils/error-codes';
-
-// snap7 area codes
-const S7AreaDB = 0x84;
-const S7AreaMK = 0x83;
-const S7AreaPE = 0x81;
-const S7AreaPA = 0x82;
-
-const AREA_CODE_MAP: Record<string, number> = {
-  DB: S7AreaDB,
-  M: S7AreaMK,
-  I: S7AreaPE,
-  Q: S7AreaPA,
-};
 
 const BLOCK_TYPE_MAP: Record<S7BlockType, number> = {
   OB: 0x38,
@@ -49,7 +36,7 @@ export class Snap7Backend implements IS7Backend {
       this.client.SetParam(this.client.PingTimeout, config.connectionTimeout);
     }
 
-    return new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       if (config.localTSAP !== undefined && config.remoteTSAP !== undefined) {
         this.client.SetConnectionParams(
           config.host,
@@ -75,13 +62,35 @@ export class Snap7Backend implements IS7Backend {
         });
       }
     });
+
+    if (config.password) {
+      await new Promise<void>((resolve, reject) => {
+        this.client.SetSessionPassword(config.password, (err: Error | undefined) => {
+          if (err) {
+            reject(new S7Error(S7ErrorCode.CONNECTION_FAILED, `SetSessionPassword failed: ${err.message}`, err));
+          } else {
+            resolve();
+          }
+        });
+      });
+    }
   }
 
   async disconnect(): Promise<void> {
     if (this.client) {
-      this.client.Disconnect();
-      this.connected = false;
-      this.client = null;
+      try {
+        try {
+          this.client.ClearSessionPassword();
+        } catch {
+          // ignore clear password errors
+        }
+        this.client.Disconnect();
+      } catch {
+        // ignore disconnect errors
+      } finally {
+        this.connected = false;
+        this.client = null;
+      }
     }
   }
 
@@ -99,7 +108,10 @@ export class Snap7Backend implements IS7Backend {
     for (const item of items) {
       try {
         const addr = item.address;
-        const areaCode = AREA_CODE_MAP[addr.area] ?? S7AreaDB;
+        const areaCode = AREA_CODE_MAP[addr.area];
+        if (areaCode === undefined) {
+          throw new S7Error(S7ErrorCode.READ_FAILED, `Unsupported area: ${addr.area}`);
+        }
         const len = byteLength(addr.dataType, addr.stringLength);
         const totalLen = addr.arrayLength ? len * addr.arrayLength : len;
 
@@ -145,7 +157,10 @@ export class Snap7Backend implements IS7Backend {
 
     for (const item of items) {
       const addr = item.address;
-      const areaCode = AREA_CODE_MAP[addr.area] ?? S7AreaDB;
+      const areaCode = AREA_CODE_MAP[addr.area];
+      if (areaCode === undefined) {
+        throw new S7Error(S7ErrorCode.WRITE_FAILED, `Unsupported area: ${addr.area}`);
+      }
       const len = byteLength(addr.dataType, addr.stringLength);
 
       if (addr.dataType === 'BOOL') {
@@ -245,6 +260,54 @@ export class Snap7Backend implements IS7Backend {
             version: info.Version ? `${(info.Version >> 4) & 0xf}.${info.Version & 0xf}` : undefined,
             date: info.CodeDate,
           });
+        }
+      });
+    });
+  }
+
+  async plcStart(): Promise<void> {
+    if (!this.client || !this.connected) {
+      throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      this.client.PlcHotStart((err: Error | undefined) => {
+        if (err) {
+          reject(new S7Error(S7ErrorCode.CONTROL_FAILED, `PlcHotStart failed: ${err.message}`, err));
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async plcStop(): Promise<void> {
+    if (!this.client || !this.connected) {
+      throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      this.client.PlcStop((err: Error | undefined) => {
+        if (err) {
+          reject(new S7Error(S7ErrorCode.CONTROL_FAILED, `PlcStop failed: ${err.message}`, err));
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async plcColdStart(): Promise<void> {
+    if (!this.client || !this.connected) {
+      throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      this.client.PlcColdStart((err: Error | undefined) => {
+        if (err) {
+          reject(new S7Error(S7ErrorCode.CONTROL_FAILED, `PlcColdStart failed: ${err.message}`, err));
+        } else {
+          resolve();
         }
       });
     });

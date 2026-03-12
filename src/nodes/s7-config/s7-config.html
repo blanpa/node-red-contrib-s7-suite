@@ -28,7 +28,7 @@
   // Browse dialog with tree/category structure
   // opts: { btnId, closeId, filterId, statusId, resultsId, dialogId, serverId, addressId, mode: 'replace'|'append'|'list', listRef }
   window.s7SuiteBrowseDialog = function (opts) {
-    $(opts.btnId).on('click', function () {
+    function fetchAndRenderBrowse() {
       var serverId = $(opts.serverId).val();
       if (!serverId) { RED.notify('Select a server first', 'warning'); return; }
       $(opts.statusId).text('Browsing...').css('color', '#666').show();
@@ -48,6 +48,8 @@
           else if (cat === 'Merker') cat = 'Merker (M)';
           else if (cat === 'Input') cat = 'Inputs (I)';
           else if (cat === 'Output') cat = 'Outputs (Q)';
+          else if (cat === 'Counter') cat = 'Counters (C)';
+          else if (cat === 'Timer') cat = 'Timers (T)';
           if (!groups[cat]) groups[cat] = [];
           groups[cat].push(a);
         });
@@ -106,8 +108,20 @@
               var tr = $('<tr style="border-bottom:1px solid #eee;cursor:pointer;"></tr>');
               tr.on('mouseover', function () { $(this).css('background', '#f5f5f5'); });
               tr.on('mouseout', function () { $(this).css('background', ''); });
-              tr.append('<td style="padding:2px 4px;font-family:monospace;font-size:11px;">' + a.address + '</td>');
-              tr.append('<td style="padding:2px 4px;text-align:center;color:#1565C0;font-size:11px;">' + a.type + '</td>');
+              tr.append($('<td style="padding:2px 4px;font-family:monospace;font-size:11px;"></td>').text(a.address));
+              tr.append($('<td style="padding:2px 4px;text-align:center;color:#1565C0;font-size:11px;"></td>').text(a.type));
+              var valTd = $('<td style="padding:2px 4px;text-align:right;font-family:monospace;font-size:11px;white-space:nowrap;"></td>');
+              if (a.value === null || a.value === undefined) {
+                valTd.append($('<span style="color:#999;"></span>').text('-'));
+              } else if (typeof a.value === 'boolean') {
+                valTd.append($('<span></span>').css('color', a.value ? '#4CAF50' : '#F44336').text(String(a.value)));
+              } else if (typeof a.value === 'number') {
+                var numStr = (a.value % 1 !== 0) ? a.value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') : String(a.value);
+                valTd.css('color', '#333').text(numStr);
+              } else {
+                valTd.css('color', '#333').text(String(a.value));
+              }
+              tr.append(valTd);
               var btn = $('<button class="red-ui-button red-ui-button-small" style="padding:0 6px;font-size:10px;">Select</button>');
               btn.on('click', function (e) { e.stopPropagation(); selectAddress(a.address); });
               var td = $('<td style="padding:2px 4px;text-align:right;"></td>').append(btn);
@@ -116,7 +130,7 @@
               tbl.append(tr);
             });
             if (shown > 100) {
-              tbl.append('<tr><td colspan="3" style="padding:4px;color:#999;font-size:11px;">' + (filtered.length - 100) + ' more... use filter</td></tr>');
+              tbl.append('<tr><td colspan="4" style="padding:4px;color:#999;font-size:11px;">' + (filtered.length - 100) + ' more... use filter</td></tr>');
             }
             body.append(tbl);
             section.append(body);
@@ -142,8 +156,14 @@
         var msg = xhr.responseJSON ? xhr.responseJSON.error : 'Browse failed';
         $(opts.statusId).text(msg).css('color', 'red');
       });
-    });
+    }
+
+    $(opts.btnId).on('click', function () { fetchAndRenderBrowse(); });
     $(opts.closeId).on('click', function () { $(opts.dialogId).hide(); });
+    // Refresh button support: if opts.refreshId is provided, bind it
+    if (opts.refreshId) {
+      $(opts.refreshId).on('click', function () { fetchAndRenderBrowse(); });
+    }
   };
 
   // ===== Config node registration =====
@@ -164,6 +184,9 @@
       reconnectInterval: { value: 1000, validate: RED.validators.number() },
       maxReconnectInterval: { value: 30000, validate: RED.validators.number() }
     },
+    credentials: {
+      password: { type: 'password' }
+    },
     label: function () {
       return this.name || this.host + ':' + this.port;
     },
@@ -182,25 +205,22 @@
         if (plcDefaults[plcType] !== undefined) {
           $('#node-config-input-slot').val(plcDefaults[plcType]);
         }
-        if (plcType === 'LOGO') {
-          $('.tsap-row').show();
-        } else {
-          $('.tsap-row').hide();
-        }
+        $('.tsap-row').show();
       });
-      $('#node-config-input-backend').on('change', function () {
-        if ($(this).val() === 'snap7') {
+      function updateBackendInfo() {
+        var val = $('#node-config-input-backend').val();
+        $('#backend-info-sim, #backend-info-nodes7, #backend-info-snap7').hide();
+        $('#backend-info-' + val).show();
+        if (val === 'snap7') {
           $.getJSON('s7-suite/snap7-available', function (data) {
-            if (!data.available) {
-              $('#snap7-warning').show();
-            } else {
-              $('#snap7-warning').hide();
-            }
+            if (!data.available) { $('#snap7-warning').show(); } else { $('#snap7-warning').hide(); }
           });
         } else {
           $('#snap7-warning').hide();
         }
-      });
+      }
+      $('#node-config-input-backend').on('change', updateBackendInfo);
+      setTimeout(updateBackendInfo, 200);
     }
   });
 </script>
@@ -240,19 +260,40 @@
   <div class="form-row">
     <label for="node-config-input-backend"><i class="fa fa-cogs"></i> Backend</label>
     <select id="node-config-input-backend">
-      <option value="sim">Simulator (no PLC needed)</option>
-      <option value="nodes7">nodes7 (pure JS)</option>
-      <option value="snap7">snap7 (native C)</option>
+      <option value="sim">Simulator &mdash; no PLC needed, generates test data</option>
+      <option value="nodes7">nodes7 &mdash; pure JS, works everywhere, no block listing</option>
+      <option value="snap7">snap7 &mdash; native C, fast, block listing &amp; SZL reads</option>
     </select>
   </div>
   <div id="snap7-warning" class="form-row" style="display:none;">
-    <div class="form-tips"><i class="fa fa-warning"></i> node-snap7 is not installed. Install it with: <code>npm install node-snap7</code></div>
+    <div class="form-tips"><i class="fa fa-warning"></i> <b>node-snap7</b> is not installed. It is an optional native C library that requires a C compiler to build.<br>
+    Install: <code>npm install node-snap7</code><br>
+    <small>If compilation fails, install build tools first (e.g. <code>apt install build-essential</code> on Debian/Ubuntu).<br>
+    Without snap7, use the <b>nodes7</b> backend instead &mdash; it supports the same Read/Write/Trigger features, only block listing and SZL reads are unavailable.</small></div>
   </div>
-  <div class="form-row tsap-row" style="display:none;">
+  <div id="backend-info" class="form-row" style="margin-left:20px;">
+    <div id="backend-info-sim" class="form-tips" style="display:none;">
+      <b>Simulator:</b> Generates dynamic test data (sine wave, counter, sawtooth) without a real PLC. Useful for flow development and testing.
+    </div>
+    <div id="backend-info-nodes7" class="form-tips" style="display:none;">
+      <b>nodes7:</b> Pure JavaScript &mdash; works on any platform without compilation. Supports all Read/Write/Trigger operations. Browse uses probe-based discovery (slower). Does not support block listing or SZL reads.
+    </div>
+    <div id="backend-info-snap7" class="form-tips" style="display:none;">
+      <b>snap7:</b> Native C library via node-snap7 &mdash; supports all features including fast block listing, SZL reads, and CPU diagnostics. Requires a C compiler for installation.
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
+    <input type="password" id="node-config-input-password" placeholder="Session password (optional)">
+  </div>
+  <div class="form-tips" style="margin-left:20px;">
+    <small>PLC session password. Only used with the <b>snap7</b> backend.</small>
+  </div>
+  <div class="form-row tsap-row">
     <label for="node-config-input-localTSAP"><i class="fa fa-exchange"></i> Local TSAP</label>
     <input type="text" id="node-config-input-localTSAP" placeholder="0x0100">
   </div>
-  <div class="form-row tsap-row" style="display:none;">
+  <div class="form-row tsap-row">
     <label for="node-config-input-remoteTSAP"><i class="fa fa-exchange"></i> Remote TSAP</label>
     <input type="text" id="node-config-input-remoteTSAP" placeholder="0x0200">
   </div>
@@ -272,4 +313,60 @@
     <label for="node-config-input-maxReconnectInterval"><i class="fa fa-refresh"></i> Max Reconnect (ms)</label>
     <input type="number" id="node-config-input-maxReconnectInterval" placeholder="30000">
   </div>
+</script>
+
+<script type="text/html" data-help-name="s7-config">
+  <p>Configuration node for Siemens S7 PLC connections.</p>
+  <h3>Properties</h3>
+  <dl class="message-properties">
+    <dt>Host <span class="property-type">string</span></dt>
+    <dd>IP address or hostname of the PLC</dd>
+    <dt>Port <span class="property-type">number</span></dt>
+    <dd>TCP port (default: 102)</dd>
+    <dt>Rack / Slot <span class="property-type">number</span></dt>
+    <dd>PLC rack and slot numbers. Slot is auto-set based on PLC type.</dd>
+    <dt>PLC Type <span class="property-type">select</span></dt>
+    <dd>S7-200, S7-300, S7-400, S7-1200, S7-1500, or LOGO</dd>
+    <dt>Backend <span class="property-type">select</span></dt>
+    <dd>Communication library to use</dd>
+  </dl>
+  <h3>Backends</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead>
+      <tr style="background:#e3f2fd;">
+        <th style="padding:4px 8px;text-align:left;border-bottom:2px solid #90CAF9;">Feature</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:2px solid #90CAF9;">Simulator</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:2px solid #90CAF9;">nodes7</th>
+        <th style="padding:4px 8px;text-align:center;border-bottom:2px solid #90CAF9;">snap7</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:3px 8px;">Language</td><td style="text-align:center;">JS (built-in)</td><td style="text-align:center;">Pure JS</td><td style="text-align:center;">Native C</td></tr>
+      <tr><td style="padding:3px 8px;">Requires PLC</td><td style="text-align:center;">No</td><td style="text-align:center;">Yes</td><td style="text-align:center;">Yes</td></tr>
+      <tr><td style="padding:3px 8px;">Requires C compiler</td><td style="text-align:center;">No</td><td style="text-align:center;">No</td><td style="text-align:center;">Yes</td></tr>
+      <tr><td style="padding:3px 8px;">Read / Write</td><td style="text-align:center;">Yes</td><td style="text-align:center;">Yes</td><td style="text-align:center;">Yes</td></tr>
+      <tr><td style="padding:3px 8px;">Trigger (polling)</td><td style="text-align:center;">Yes</td><td style="text-align:center;">Yes</td><td style="text-align:center;">Yes</td></tr>
+      <tr><td style="padding:3px 8px;">Browse (block listing)</td><td style="text-align:center;">Simulated</td><td style="text-align:center;">Probe-based (slow)</td><td style="text-align:center;">Native API (fast)</td></tr>
+      <tr><td style="padding:3px 8px;">SZL / CPU diagnostics</td><td style="text-align:center;">Simulated</td><td style="text-align:center;">No</td><td style="text-align:center;">Yes</td></tr>
+      <tr><td style="padding:3px 8px;">Best for</td><td style="text-align:center;">Development</td><td style="text-align:center;">Production (easy setup)</td><td style="text-align:center;">Production (full features)</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:8px;"><b>Recommendation:</b> Use <b>nodes7</b> if you just need Read/Write/Trigger &mdash; it works everywhere without compilation.
+  Use <b>snap7</b> if you need block listing, CPU diagnostics, or SZL reads.
+  Use <b>Simulator</b> for development and testing without a PLC.</p>
+  <p><code>node-snap7</code> is listed as an optional dependency. If compilation fails during <code>npm install</code>,
+  the package still installs successfully &mdash; only the snap7 backend will be unavailable.</p>
+  <h3>TSAP Configuration (LOGO)</h3>
+  <p>For Siemens LOGO PLCs, use TSAP addresses instead of rack/slot:</p>
+  <ul>
+    <li><b>Local TSAP:</b> e.g. <code>0x0100</code></li>
+    <li><b>Remote TSAP:</b> e.g. <code>0x0200</code></li>
+  </ul>
+  <h3>Connection Settings</h3>
+  <ul>
+    <li><b>Connection Timeout:</b> Maximum time to establish connection (ms)</li>
+    <li><b>Request Timeout:</b> Maximum time for a read/write request (ms)</li>
+    <li><b>Reconnect Interval:</b> Initial delay before reconnection attempt (ms)</li>
+    <li><b>Max Reconnect Interval:</b> Maximum delay with exponential backoff (ms)</li>
+  </ul>
 </script>

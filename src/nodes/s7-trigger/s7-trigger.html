@@ -28,7 +28,8 @@
         dialogId: '#s7t-browse-dialog',
         serverId: '#node-input-server',
         addressId: '#node-input-address',
-        mode: 'replace'
+        mode: 'replace',
+        refreshId: '#s7t-browse-refresh'
       });
     }
   });
@@ -72,7 +73,10 @@
   <div id="s7t-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <b><i class="fa fa-sitemap"></i> PLC Address Browser</b>
-      <button type="button" id="s7t-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      <div>
+        <button type="button" id="s7t-browse-refresh" class="red-ui-button red-ui-button-small" style="margin-right:4px;"><i class="fa fa-refresh"></i></button>
+        <button type="button" id="s7t-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      </div>
     </div>
     <input type="text" id="s7t-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
     <div id="s7t-browse-status" style="padding:8px;color:#666;display:none;"></div>
@@ -86,14 +90,32 @@
 </script>
 
 <script type="text/html" data-help-name="s7-trigger">
-  <p>Polls a Siemens S7 PLC address and triggers on value changes.</p>
+  <p>Polls a Siemens S7 PLC address at a configurable interval and triggers on value changes.</p>
   <h3>Outputs</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">any</span></dt>
-    <dd>The new value</dd>
+    <dd>The new value read from the PLC</dd>
     <dt>topic <span class="property-type">string</span></dt>
     <dd>The address that changed</dd>
     <dt>oldValue <span class="property-type">any</span></dt>
-    <dd>The previous value</dd>
+    <dd>The previous value before the change</dd>
   </dl>
+  <h3>Details</h3>
+  <p>The node polls the configured address at the specified interval and only sends
+  a message when the value changes, based on the edge mode and deadband settings.</p>
+  <h4>Polling Interval</h4>
+  <p>Time in milliseconds between PLC reads. Default: 1000ms. Polling starts
+  automatically when the PLC connection is established and pauses during disconnection.</p>
+  <h4>Edge Mode</h4>
+  <ul>
+    <li><b>Any change:</b> Triggers on any value change (default)</li>
+    <li><b>Rising edge:</b> Triggers only when a boolean changes from false to true</li>
+    <li><b>Falling edge:</b> Triggers only when a boolean changes from true to false</li>
+  </ul>
+  <h4>Deadband</h4>
+  <p>For numeric values, the minimum absolute change required to trigger a message.
+  Set to 0 to trigger on any change. Useful for filtering noise on analog signals.</p>
+  <h4>Multiple Addresses</h4>
+  <p>Enter multiple addresses separated by spaces or semicolons. Each address is
+  monitored independently and sends separate messages when changed.</p>
 </script>

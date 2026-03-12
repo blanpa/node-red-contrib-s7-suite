@@ -21,7 +21,7 @@ export interface S7BlockInfo {
   date?: string;
 }
 
-export type BrowseScope = 'DB' | 'M' | 'I' | 'Q';
+export type BrowseScope = 'DB' | 'M' | 'I' | 'Q' | 'C' | 'T';
 
 export interface BrowseOptions {
   scope: BrowseScope[];
@@ -40,6 +40,7 @@ export interface BrowseResult {
   cpuInfo?: Record<string, unknown>;
   blocks: S7BlockInfo[];
   areas: AreaInfo[];
+  addresses?: Array<{ address: string; type: string; value: unknown }>;
 }
 
 export interface AreaInfo {

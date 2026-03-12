@@ -1,8 +1,11 @@
-import { NodeAPI, NodeDef } from 'node-red';
+import { NodeAPI, Node, NodeDef } from 'node-red';
 import { ConnectionManager } from '../../core/connection-manager';
 import { createBackend, isSnap7Available } from '../../backend/backend-factory';
 import { PlcType, BackendType, PLC_DEFAULT_SLOTS } from '../../types/s7-connection';
 import { S7ConfigNode } from './s7-config-types';
+import { readValue } from '../../core/data-converter';
+import { parseAddress } from '../../core/address-parser';
+import { AREA_CODE_MAP } from '../../types/s7-address';
 
 interface S7ConfigNodeDef extends NodeDef {
   host: string;
@@ -23,6 +26,16 @@ export = function (RED: NodeAPI): void {
   function S7ConfigNodeConstructor(this: S7ConfigNode, config: S7ConfigNodeDef): void {
     RED.nodes.createNode(this, config);
 
+    const childNodes = new Set<Node>();
+
+    this.registerChildNode = (node: Node): void => {
+      childNodes.add(node);
+    };
+
+    this.deregisterChildNode = (node: Node): void => {
+      childNodes.delete(node);
+    };
+
     const plcType = config.plcType || 'S7-1200';
     const slot = config.slot ?? PLC_DEFAULT_SLOTS[plcType];
 
@@ -35,6 +48,7 @@ export = function (RED: NodeAPI): void {
       backend: config.backend || 'nodes7',
       localTSAP: config.localTSAP ? parseInt(config.localTSAP, 16) : undefined,
       remoteTSAP: config.remoteTSAP ? parseInt(config.remoteTSAP, 16) : undefined,
+      password: (this as any).credentials?.password || undefined, // eslint-disable-line @typescript-eslint/no-explicit-any
       connectionTimeout: config.connectionTimeout || 5000,
       requestTimeout: config.requestTimeout || 3000,
       reconnectInterval: config.reconnectInterval || 1000,
@@ -46,6 +60,11 @@ export = function (RED: NodeAPI): void {
 
     this.connectionManager.on('stateChanged', ({ newState }) => {
       this.log(`Connection state: ${newState}`);
+      if (newState === 'error' || newState === 'disconnected') {
+        this.warn(`Connection ${newState}: ${this.s7Config.host}:${this.s7Config.port}`);
+      } else if (newState === 'connected') {
+        this.log(`Connected to PLC at ${this.s7Config.host}:${this.s7Config.port}`);
+      }
     });
 
     this.connectionManager.connect().catch((err: Error) => {
@@ -57,7 +76,12 @@ export = function (RED: NodeAPI): void {
     });
   }
 
-  RED.nodes.registerType('s7-config', S7ConfigNodeConstructor);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  RED.nodes.registerType('s7-config', S7ConfigNodeConstructor as any, {
+    credentials: {
+      password: { type: 'password' },
+    },
+  });
 
   RED.httpAdmin.get('/s7-suite/snap7-available', (_req, res) => {
     res.json({ available: isSnap7Available() });
@@ -92,7 +116,10 @@ export = function (RED: NodeAPI): void {
     try {
       const backend = configNode.connectionManager.getBackend();
       const isSnap7Backend = configNode.s7Config.backend === 'snap7';
-      const addresses: Array<{ address: string; type: string; size: number; info?: string }> = [];
+      const addresses: Array<{ address: string; type: string; size: number; info?: string; value?: unknown }> = [];
+
+      // Track area buffers for value reading: key = "area:dbNumber", value = { areaCode, dbNumber, size }
+      const areaBufferInfo: Array<{ areaCode: number; dbNumber: number; size: number }> = [];
 
       // Browse DBs
       if (isSnap7Backend) {
@@ -102,6 +129,7 @@ export = function (RED: NodeAPI): void {
             try {
               const info = await backend.getBlockInfo('DB', dbNum);
               addDbAddresses(addresses, dbNum, info.sizeData);
+              areaBufferInfo.push({ areaCode: 0x84, dbNumber: dbNum, size: info.sizeData });
             } catch { /* skip */ }
           }
         } catch { /* skip */ }
@@ -121,13 +149,16 @@ export = function (RED: NodeAPI): void {
               } catch { /* too large */ }
             }
             addDbAddresses(addresses, db, size);
+            areaBufferInfo.push({ areaCode: 0x84, dbNumber: db, size });
           } catch { /* DB doesn't exist */ }
         }
       }
 
       // Probe Merker
+      let merkerSize = 0;
       try {
         await configNode.connectionManager.readRawArea(0x83, 0, 0, 1);
+        merkerSize = 32;
         for (let i = 0; i < 32; i++) {
           addresses.push({ address: `MB${i}`, type: 'BYTE', size: 1, info: 'Merker' });
         }
@@ -139,10 +170,15 @@ export = function (RED: NodeAPI): void {
           if (i >= 63) break; // limit
         }
       } catch { /* no merker access */ }
+      if (merkerSize > 0) {
+        areaBufferInfo.push({ areaCode: 0x83, dbNumber: 0, size: merkerSize });
+      }
 
       // Probe Inputs
+      let inputSize = 0;
       try {
         await configNode.connectionManager.readRawArea(0x81, 0, 0, 1);
+        inputSize = 8;
         for (let i = 0; i < 8; i++) {
           addresses.push({ address: `IB${i}`, type: 'BYTE', size: 1, info: 'Input' });
         }
@@ -150,10 +186,15 @@ export = function (RED: NodeAPI): void {
           addresses.push({ address: `I${Math.floor(i / 8)}.${i % 8}`, type: 'BOOL', size: 0, info: 'Input' });
         }
       } catch { /* no input access */ }
+      if (inputSize > 0) {
+        areaBufferInfo.push({ areaCode: 0x81, dbNumber: 0, size: inputSize });
+      }
 
       // Probe Outputs
+      let outputSize = 0;
       try {
         await configNode.connectionManager.readRawArea(0x82, 0, 0, 1);
+        outputSize = 8;
         for (let i = 0; i < 8; i++) {
           addresses.push({ address: `QB${i}`, type: 'BYTE', size: 1, info: 'Output' });
         }
@@ -161,6 +202,38 @@ export = function (RED: NodeAPI): void {
           addresses.push({ address: `Q${Math.floor(i / 8)}.${i % 8}`, type: 'BOOL', size: 0, info: 'Output' });
         }
       } catch { /* no output access */ }
+      if (outputSize > 0) {
+        areaBufferInfo.push({ areaCode: 0x82, dbNumber: 0, size: outputSize });
+      }
+
+      // Read current values from PLC
+      try {
+        // Read all area buffers once
+        const areaCodeToKey = (areaCode: number, dbNumber: number): string => `${areaCode}:${dbNumber}`;
+        const bufferCache = new Map<string, Buffer>();
+
+        for (const info of areaBufferInfo) {
+          const key = areaCodeToKey(info.areaCode, info.dbNumber);
+          try {
+            const buf = await configNode.connectionManager.readRawArea(info.areaCode, info.dbNumber, 0, info.size);
+            bufferCache.set(key, buf);
+          } catch { /* skip - buffer won't be available for this area */ }
+        }
+
+        // Extract values for each address
+        for (const entry of addresses) {
+          try {
+            const parsed = parseAddress(entry.address);
+            const areaCode = AREA_CODE_MAP[parsed.area];
+            if (areaCode === undefined) continue;
+            const dbNum = parsed.area === 'DB' ? parsed.dbNumber : 0;
+            const key = areaCodeToKey(areaCode, dbNum);
+            const buf = bufferCache.get(key);
+            if (!buf) continue;
+            entry.value = readValue(buf, parsed.offset, parsed.dataType, parsed.bitOffset);
+          } catch { /* skip individual address */ }
+        }
+      } catch { /* value reading failed - addresses still returned without values */ }
 
       res.json({ addresses });
     } catch (err) {
@@ -170,7 +243,7 @@ export = function (RED: NodeAPI): void {
 };
 
 function addDbAddresses(
-  addresses: Array<{ address: string; type: string; size: number; info?: string }>,
+  addresses: Array<{ address: string; type: string; size: number; info?: string; value?: unknown }>,
   dbNum: number,
   dbSize: number,
 ): void {

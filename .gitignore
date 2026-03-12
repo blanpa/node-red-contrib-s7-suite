@@ -33,3 +33,7 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Dev artifacts
+*.wav
+misc/

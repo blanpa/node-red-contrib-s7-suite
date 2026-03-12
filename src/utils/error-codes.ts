@@ -10,6 +10,8 @@ export enum S7ErrorCode {
   BROWSE_FAILED = 'BROWSE_FAILED',
   RATE_LIMITED = 'RATE_LIMITED',
   QUEUE_FULL = 'QUEUE_FULL',
+  REQUEST_TIMEOUT = 'REQUEST_TIMEOUT',
+  CONTROL_FAILED = 'CONTROL_FAILED',
 }
 
 export class S7Error extends Error {

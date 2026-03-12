@@ -46,6 +46,7 @@ export class Poller extends EventEmitter {
       clearInterval(this.timer);
       this.timer = null;
     }
+    this.removeAllListeners();
   }
 
   isRunning(): boolean {

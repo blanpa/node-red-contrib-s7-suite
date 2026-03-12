@@ -24,7 +24,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
   beforeEach(async () => {
     backend = new NodeS7Backend();
     jest.clearAllMocks();
-    mockInitiateConnection.mockImplementation((_p: any, cb: Function) => cb());
+    mockInitiateConnection.mockImplementation((_p: unknown, cb: Function) => cb());
     await backend.connect({
       host: '192.168.1.100', port: 102, rack: 0, slot: 1,
       plcType: 'S7-1200', backend: 'nodes7',
@@ -43,7 +43,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
 
   it('readRawArea with M area', async () => {
     mockReadAllItems.mockImplementation((cb: Function) => {
-      cb(undefined, { 'MB0': 42 });
+      cb(undefined, { 'MB0.1': 42 });
     });
 
     const result = await backend.readRawArea(0x83, 0, 0, 1);
@@ -52,7 +52,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
 
   it('readRawArea with I area', async () => {
     mockReadAllItems.mockImplementation((cb: Function) => {
-      cb(undefined, { 'IB0': 5 });
+      cb(undefined, { 'IB0.1': 5 });
     });
 
     const result = await backend.readRawArea(0x81, 0, 0, 1);
@@ -61,7 +61,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
 
   it('readRawArea with Q area', async () => {
     mockReadAllItems.mockImplementation((cb: Function) => {
-      cb(undefined, { 'QB0': 7 });
+      cb(undefined, { 'QB0.1': 7 });
     });
 
     const result = await backend.readRawArea(0x82, 0, 0, 1);
@@ -132,7 +132,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
   });
 
   it('write generates nodes7Address from address when not provided', async () => {
-    mockWriteItems.mockImplementation((_n: any, _v: any, cb: Function) => cb());
+    mockWriteItems.mockImplementation((_n: unknown, _v: unknown, cb: Function) => cb());
 
     await backend.write([{
       name: 'test',
@@ -154,7 +154,7 @@ describe('NodeS7Backend - rawArea and edge cases', () => {
 
   it('connect passes timeout when configured', async () => {
     const backend2 = new NodeS7Backend();
-    mockInitiateConnection.mockImplementation((params: any, cb: Function) => {
+    mockInitiateConnection.mockImplementation((params: Record<string, unknown>, cb: Function) => {
       expect(params.timeout).toBe(3000);
       cb();
     });

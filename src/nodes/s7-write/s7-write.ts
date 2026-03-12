@@ -1,11 +1,15 @@
 import { NodeAPI, Node, NodeDef, NodeMessage } from 'node-red';
 import { S7ConfigNode } from '../s7-config/s7-config-types';
 import { parseAddress, toNodes7Address } from '../../core/address-parser';
-import { S7WriteItem } from '../../types/s7-address';
+import { S7WriteItem, S7StructField, AREA_CODE_MAP } from '../../types/s7-address';
+import { writeValue, byteLength } from '../../core/data-converter';
+import { createStatusUpdater } from '../shared/status-helper';
 
 interface S7WriteNodeDef extends NodeDef {
   server: string;
   address: string;
+  mode: 'single' | 'multi' | 'struct';
+  schema: string; // JSON-encoded S7StructField[]
 }
 
 export = function (RED: NodeAPI): void {
@@ -18,22 +22,9 @@ export = function (RED: NodeAPI): void {
       return;
     }
 
-    const updateStatus = ({ newState }: { newState: string }) => {
-      switch (newState) {
-        case 'connected':
-          this.status({ fill: 'green', shape: 'dot', text: 'connected' });
-          break;
-        case 'connecting':
-        case 'reconnecting':
-          this.status({ fill: 'yellow', shape: 'ring', text: newState });
-          break;
-        case 'error':
-          this.status({ fill: 'red', shape: 'dot', text: 'error' });
-          break;
-        default:
-          this.status({ fill: 'grey', shape: 'ring', text: 'disconnected' });
-      }
-    };
+    serverNode.registerChildNode(this);
+
+    const updateStatus = createStatusUpdater(this);
 
     serverNode.connectionManager.on('stateChanged', updateStatus);
     updateStatus({ newState: serverNode.connectionManager.getState() });
@@ -42,6 +33,148 @@ export = function (RED: NodeAPI): void {
       const send = _send || ((m: NodeMessage) => this.send(m));
 
       try {
+        const mode = config.mode || 'single';
+
+        if (mode === 'multi') {
+          // Multi-write: msg.payload is an object { address: value, ... }
+          const payload = msg.payload as Record<string, unknown>;
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            done(new Error('Multi-write mode requires msg.payload to be an object { address: value }'));
+            return;
+          }
+
+          const entries = Object.entries(payload);
+          if (entries.length === 0) {
+            done(new Error('Multi-write payload is empty'));
+            return;
+          }
+
+          const items: S7WriteItem[] = entries.map(([addr, value], i) => {
+            const parsed = parseAddress(addr);
+            return {
+              name: `item_${i}`,
+              address: parsed,
+              nodes7Address: toNodes7Address(parsed),
+              value,
+            };
+          });
+
+          await serverNode.connectionManager.write(items);
+          send(msg);
+          done();
+          return;
+        }
+
+        if (mode === 'struct') {
+          // Struct-write: read-modify-write using schema
+          const addressStr = (msg.topic as string) || config.address;
+          if (!addressStr) {
+            done(new Error('No base address specified'));
+            return;
+          }
+
+          const schemaSource = (msg as Record<string, unknown>).schema || config.schema;
+          if (!schemaSource) {
+            done(new Error('No schema specified'));
+            return;
+          }
+
+          let schema: S7StructField[];
+          try {
+            schema = typeof schemaSource === 'string'
+              ? JSON.parse(schemaSource)
+              : schemaSource as S7StructField[];
+          } catch {
+            done(new Error('Invalid JSON in schema'));
+            return;
+          }
+
+          if (!Array.isArray(schema) || schema.length === 0) {
+            done(new Error('Schema must be a non-empty array'));
+            return;
+          }
+
+          const payload = msg.payload as Record<string, unknown>;
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            done(new Error('Struct-write mode requires msg.payload to be an object'));
+            return;
+          }
+
+          const validTypes: Set<string> = new Set([
+            'BOOL', 'BYTE', 'WORD', 'DWORD', 'INT', 'DINT', 'REAL', 'LREAL', 'CHAR', 'STRING',
+          ]);
+          for (const field of schema) {
+            if (!field.name || typeof field.name !== 'string') {
+              done(new Error('Schema field missing required "name" property'));
+              return;
+            }
+            if (!field.type || !validTypes.has(field.type)) {
+              done(new Error(`Schema field "${field.name}" has invalid type: "${field.type}"`));
+              return;
+            }
+            if (field.offset === undefined || typeof field.offset !== 'number' || field.offset < 0) {
+              done(new Error(`Schema field "${field.name}" has invalid offset: ${field.offset}`));
+              return;
+            }
+          }
+
+          const baseParsed = parseAddress(addressStr.trim());
+          const areaCode = AREA_CODE_MAP[baseParsed.area];
+          if (areaCode === undefined) {
+            done(new Error(`Unsupported area: ${baseParsed.area}`));
+            return;
+          }
+
+          // Calculate required buffer length from schema
+          let requiredLength = 0;
+          for (const field of schema) {
+            const fieldEnd = field.offset + byteLength(field.type, field.length);
+            if (fieldEnd > requiredLength) requiredLength = fieldEnd;
+          }
+
+          // Read current buffer (read-modify-write for BOOL support)
+          const buffer = await serverNode.connectionManager.readRawArea(
+            areaCode, baseParsed.dbNumber, baseParsed.offset, requiredLength
+          );
+
+          // Write each matching field into the buffer
+          const fieldsToWrite: S7StructField[] = [];
+          for (const field of schema) {
+            if (field.name in payload) {
+              writeValue(buffer, field.offset, field.type, payload[field.name], field.bit ?? 0);
+              fieldsToWrite.push(field);
+            }
+          }
+
+          if (fieldsToWrite.length === 0) {
+            done(new Error('No fields in msg.payload match the schema'));
+            return;
+          }
+
+          // Build individual S7WriteItem for each modified field and write via connectionManager
+          const items: S7WriteItem[] = fieldsToWrite.map((field, i) => {
+            const fieldAddress = {
+              ...baseParsed,
+              dataType: field.type,
+              offset: baseParsed.offset + field.offset,
+              bitOffset: field.bit ?? 0,
+              stringLength: field.length,
+            };
+            return {
+              name: `struct_${i}`,
+              address: fieldAddress,
+              nodes7Address: toNodes7Address(fieldAddress),
+              value: payload[field.name],
+            };
+          });
+
+          await serverNode.connectionManager.write(items);
+          send(msg);
+          done();
+          return;
+        }
+
+        // Single mode (default): current behavior
         const addressStr = (msg.topic as string) || config.address;
         if (!addressStr) {
           done(new Error('No address specified'));
@@ -69,7 +202,10 @@ export = function (RED: NodeAPI): void {
     });
 
     this.on('close', () => {
-      serverNode.connectionManager.removeListener('stateChanged', updateStatus);
+      if (serverNode) {
+        serverNode.deregisterChildNode(this);
+        serverNode.connectionManager.removeListener('stateChanged', updateStatus);
+      }
     });
   }
 

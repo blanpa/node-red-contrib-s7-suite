@@ -230,7 +230,7 @@
     "id": "read-multi",
     "type": "s7-read",
     "z": "tab-main",
-    "name": "Read Multi \u2192 Object",
+    "name": "Read Multi → Object",
     "server": "config-nodes7",
     "address": "",
     "outputMode": "object",
@@ -421,7 +421,7 @@
     "id": "inject-write-real",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 42.5 \u2192 DB1,REAL0",
+    "name": "Write 42.5 → DB1,REAL0",
     "props": [
       {
         "p": "payload",
@@ -449,7 +449,7 @@
     "id": "inject-write-int",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 1234 \u2192 DB1,INT4",
+    "name": "Write 1234 → DB1,INT4",
     "props": [
       {
         "p": "payload",
@@ -477,7 +477,7 @@
     "id": "inject-write-bool-true",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write true \u2192 DB1,BOOL6.0",
+    "name": "Write true → DB1,BOOL6.0",
     "props": [
       {
         "p": "payload",
@@ -505,7 +505,7 @@
     "id": "inject-write-bool-false",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write false \u2192 DB1,BOOL6.0",
+    "name": "Write false → DB1,BOOL6.0",
     "props": [
       {
         "p": "payload",
@@ -533,7 +533,7 @@
     "id": "inject-write-dint",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 100000 \u2192 DB1,DINT8",
+    "name": "Write 100000 → DB1,DINT8",
     "props": [
       {
         "p": "payload",
@@ -589,7 +589,7 @@
     "id": "inject-write-merker",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 0xFF \u2192 MB0",
+    "name": "Write 0xFF → MB0",
     "props": [
       {
         "p": "payload",
@@ -645,7 +645,7 @@
     "id": "comment-writeread",
     "type": "comment",
     "z": "tab-main",
-    "name": "--- 3. WRITE \u2192 READ Roundtrip ---",
+    "name": "--- 3. WRITE → READ Roundtrip ---",
     "info": "",
     "x": 200,
     "y": 1040
@@ -654,7 +654,7 @@
     "id": "inject-roundtrip",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 99.9 \u2192 DB1,REAL0",
+    "name": "Write 99.9 → DB1,REAL0",
     "props": [
       {
         "p": "payload",
@@ -736,7 +736,7 @@
     "id": "roundtrip-check",
     "type": "function",
     "z": "tab-main",
-    "name": "Verify \u2248 99.9",
+    "name": "Verify ≈ 99.9",
     "func": "const written = 99.9;\nconst read = msg.payload;\nconst diff = Math.abs(read - written);\nif (diff < 0.1) {\n    msg.result = 'PASS';\n    msg.detail = `Written: ${written}, Read: ${read}, Diff: ${diff.toFixed(4)}`;\n} else {\n    msg.result = 'FAIL';\n    msg.detail = `Written: ${written}, Read: ${read}, Diff: ${diff.toFixed(4)}`;\n}\nnode.status({fill: msg.result === 'PASS' ? 'green' : 'red', shape: 'dot', text: msg.result});\nreturn msg;",
     "outputs": 1,
     "x": 650,
@@ -1047,10 +1047,244 @@
     "y": 1800
   },
   {
+    "id": "comment-output-modes",
+    "type": "comment",
+    "z": "tab-main",
+    "name": "--- 6. Output Modes: Buffer / Struct / Bits ---",
+    "info": "Demonstrates buffer, struct, and bits output modes of s7-read.",
+    "x": 240,
+    "y": 1880
+  },
+  {
+    "id": "inject-buffer",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read 32 bytes as Buffer",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BYTE0.32"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,BYTE0.32",
+    "x": 200,
+    "y": 1940,
+    "wires": [
+      [
+        "read-buffer"
+      ]
+    ]
+  },
+  {
+    "id": "read-buffer",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Buffer (32 bytes)",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "buffer",
+    "topic": "",
+    "schema": "",
+    "x": 470,
+    "y": 1940,
+    "wires": [
+      [
+        "debug-buffer"
+      ]
+    ]
+  },
+  {
+    "id": "debug-buffer",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Buffer",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 1940
+  },
+  {
+    "id": "inject-struct",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read as Struct",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BYTE0"
+      },
+      {
+        "p": "schema",
+        "vt": "json",
+        "v": "[{\"name\":\"temperature\",\"type\":\"REAL\",\"offset\":0},{\"name\":\"setpoint\",\"type\":\"INT\",\"offset\":4},{\"name\":\"motorOn\",\"type\":\"BOOL\",\"offset\":6,\"bit\":0},{\"name\":\"alarmActive\",\"type\":\"BOOL\",\"offset\":6,\"bit\":2},{\"name\":\"counter\",\"type\":\"DINT\",\"offset\":8},{\"name\":\"statusWord\",\"type\":\"WORD\",\"offset\":12}]"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,BYTE0",
+    "x": 160,
+    "y": 2010,
+    "wires": [
+      [
+        "read-struct"
+      ]
+    ]
+  },
+  {
+    "id": "read-struct",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Struct",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "struct",
+    "topic": "",
+    "schema": "",
+    "x": 430,
+    "y": 2010,
+    "wires": [
+      [
+        "debug-struct"
+      ]
+    ]
+  },
+  {
+    "id": "debug-struct",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Struct Object",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 710,
+    "y": 2010
+  },
+  {
+    "id": "inject-bits",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read 2 bytes as Bits",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,BYTE6.2"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,BYTE6.2",
+    "x": 180,
+    "y": 2080,
+    "wires": [
+      [
+        "read-bits"
+      ]
+    ]
+  },
+  {
+    "id": "read-bits",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read Bits (16 bools)",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "bits",
+    "topic": "",
+    "schema": "",
+    "x": 460,
+    "y": 2080,
+    "wires": [
+      [
+        "debug-bits"
+      ]
+    ]
+  },
+  {
+    "id": "debug-bits",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Bit Array",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 2080
+  },
+  {
+    "id": "inject-object-big",
+    "type": "inject",
+    "z": "tab-main",
+    "name": "Read Large Object (all DB1 fields)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0 DB1,INT4 DB1,BOOL6.0 DB1,BOOL6.2 DB1,DINT8 DB1,WORD12 DB1,DWORD14 DB1,BYTE18 DB1,REAL20 DB1,DINT24 DB1,REAL28 DB1,BYTE32 DB1,BYTE33 DB1,BYTE34 DB1,BYTE35 DB1,INT36 DB1,INT38 DB1,REAL40 DB1,REAL44 DB1,DINT48 DB1,WORD52 DB1,WORD54 DB1,BYTE56 DB1,BYTE57 DB1,BYTE58 DB1,BYTE59"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "DB1,REAL0 DB1,INT4 DB1,BOOL6.0 DB1,BOOL6.2 DB1,DINT8 DB1,WORD12 DB1,DWORD14 DB1,BYTE18 DB1,REAL20 DB1,DINT24 DB1,REAL28 DB1,BYTE32 DB1,BYTE33 DB1,BYTE34 DB1,BYTE35 DB1,INT36 DB1,INT38 DB1,REAL40 DB1,REAL44 DB1,DINT48 DB1,WORD52 DB1,WORD54 DB1,BYTE56 DB1,BYTE57 DB1,BYTE58 DB1,BYTE59",
+    "x": 230,
+    "y": 2150,
+    "wires": [
+      [
+        "read-object-big"
+      ]
+    ]
+  },
+  {
+    "id": "read-object-big",
+    "type": "s7-read",
+    "z": "tab-main",
+    "name": "Read 26 Addrs → Object",
+    "server": "config-nodes7",
+    "address": "",
+    "outputMode": "object",
+    "topic": "",
+    "schema": "",
+    "x": 510,
+    "y": 2150,
+    "wires": [
+      [
+        "debug-object-big"
+      ]
+    ]
+  },
+  {
+    "id": "debug-object-big",
+    "type": "debug",
+    "z": "tab-main",
+    "name": "Result: Large Object (26 keys)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 770,
+    "y": 2150
+  },
+  {
     "id": "comment-stress",
     "type": "comment",
     "z": "tab-main",
-    "name": "--- 6. Stress & Error Tests ---",
+    "name": "--- 7. Stress & Error Tests ---",
     "info": "",
     "x": 190,
     "y": 1880
@@ -1240,7 +1474,7 @@
     "id": "inject-write-word",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 0xABCD \u2192 DB1,WORD12",
+    "name": "Write 0xABCD → DB1,WORD12",
     "props": [
       {
         "p": "payload",
@@ -1268,7 +1502,7 @@
     "id": "inject-write-dword",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 0x12345678 \u2192 DB1,DWORD14",
+    "name": "Write 0x12345678 → DB1,DWORD14",
     "props": [
       {
         "p": "payload",
@@ -1296,7 +1530,7 @@
     "id": "inject-write-byte",
     "type": "inject",
     "z": "tab-main",
-    "name": "Write 0x42 \u2192 DB1,BYTE18",
+    "name": "Write 0x42 → DB1,BYTE18",
     "props": [
       {
         "p": "payload",
@@ -1363,5 +1597,979 @@
     "targetType": "full",
     "x": 850,
     "y": 2260
+  },
+  {
+    "id": "tab-s7-300",
+    "type": "tab",
+    "label": "S7-300 NetLink Test",
+    "disabled": false,
+    "info": "Test: S7-300 CPU 314 via ACCON-NetLink-PRO compact\nIP: 192.168.1.101, Rack: 0, Slot: 2\nBackend: nodes7"
+  },
+  {
+    "id": "config-s7-300",
+    "type": "s7-config",
+    "name": "S7-300 via NetLink",
+    "host": "host.docker.internal",
+    "port": 10102,
+    "rack": 0,
+    "slot": 2,
+    "plcType": "S7-300",
+    "backend": "nodes7",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "comment-s7300-header",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "=== S7-300 CPU 314 via ACCON-NetLink-PRO compact ===",
+    "info": "IP: 192.168.1.101\nRack: 0, Slot: 2 (MPI-Busadresse 2)\nBackend: nodes7\nPort: 102 (RFC1006)",
+    "x": 280,
+    "y": 40
+  },
+  {
+    "id": "comment-s7300-read",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 1. Merker, Eingaenge, Ausgaenge lesen ---",
+    "info": "",
+    "x": 220,
+    "y": 100
+  },
+  {
+    "id": "inject-s7300-mb0",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read MB0",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB0",
+    "x": 130,
+    "y": 160,
+    "wires": [
+      [
+        "read-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-mb1",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read MB1",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB1"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB1",
+    "x": 130,
+    "y": 210,
+    "wires": [
+      [
+        "read-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-mw0",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read MW0 (INT)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MW0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MW0",
+    "x": 150,
+    "y": 260,
+    "wires": [
+      [
+        "read-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-eb0",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read EB0 (Eingang)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "IB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "IB0",
+    "x": 160,
+    "y": 310,
+    "wires": [
+      [
+        "read-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-ab0",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read AB0 (Ausgang)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "QB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "QB0",
+    "x": 160,
+    "y": 360,
+    "wires": [
+      [
+        "read-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7300-single",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read Single",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "schema": "[]",
+    "x": 390,
+    "y": 260,
+    "wires": [
+      [
+        "debug-s7300-single"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-single",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Single Read Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 610,
+    "y": 260
+  },
+  {
+    "id": "comment-s7300-multi",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 2. Multi-Read (alle Bereiche auf einmal) ---",
+    "info": "",
+    "x": 230,
+    "y": 430
+  },
+  {
+    "id": "inject-s7300-multi",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read All Areas",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0 MB1 MB2 MB3 IB0 IB1 QB0 QB1"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB0 MB1 MB2 MB3 IB0 IB1 QB0 QB1",
+    "x": 160,
+    "y": 490,
+    "wires": [
+      [
+        "read-s7300-multi"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7300-multi",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read Multi -> Object",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "object",
+    "topic": "",
+    "schema": "[]",
+    "x": 410,
+    "y": 490,
+    "wires": [
+      [
+        "debug-s7300-multi"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-multi",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Multi Read Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 650,
+    "y": 490
+  },
+  {
+    "id": "comment-s7300-bits",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 3. Einzelne Bits lesen (M0.0 - M0.7) ---",
+    "info": "",
+    "x": 230,
+    "y": 560
+  },
+  {
+    "id": "inject-s7300-bits",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read M0.0..M0.7 als Bits",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB0",
+    "x": 190,
+    "y": 620,
+    "wires": [
+      [
+        "read-s7300-bits"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7300-bits",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read Bits (MB0)",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "bits",
+    "topic": "",
+    "schema": "[]",
+    "x": 410,
+    "y": 620,
+    "wires": [
+      [
+        "debug-s7300-bits"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-bits",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Bits Result [M0.0..M0.7]",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 650,
+    "y": 620
+  },
+  {
+    "id": "comment-s7300-write",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 4. Merker schreiben und zuruecklesen ---",
+    "info": "",
+    "x": 230,
+    "y": 690
+  },
+  {
+    "id": "inject-s7300-write-mb0-ff",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write 0xFF -> MB0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "255",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 750,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-write-mb0-00",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write 0x00 -> MB0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "0",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 800,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-write-mb0-aa",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write 0xAA -> MB0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "170",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 850,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-write-mw0",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write 12345 -> MW0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "12345",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MW0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 900,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-write-bit-on",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write true -> M0.0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "true",
+        "vt": "bool"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "M0.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 950,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "inject-s7300-write-bit-off",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Write false -> M0.0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "false",
+        "vt": "bool"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "M0.0"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 1000,
+    "wires": [
+      [
+        "write-s7300"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7300",
+    "type": "s7-write",
+    "z": "tab-s7-300",
+    "name": "Write to S7-300",
+    "server": "config-s7-300",
+    "address": "",
+    "x": 420,
+    "y": 850,
+    "wires": [
+      [
+        "write-s7300-delay"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7300-delay",
+    "type": "delay",
+    "z": "tab-s7-300",
+    "name": "Wait 300ms",
+    "pauseType": "delay",
+    "timeout": "300",
+    "timeoutUnits": "milliseconds",
+    "rate": "1",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "x": 420,
+    "y": 920,
+    "wires": [
+      [
+        "write-s7300-readback"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7300-readback",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read back",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "schema": "[]",
+    "x": 420,
+    "y": 990,
+    "wires": [
+      [
+        "write-s7300-verify"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7300-verify",
+    "type": "function",
+    "z": "tab-s7-300",
+    "name": "Verify Write",
+    "func": "const written = msg._originalPayload || msg.payload;\nconst readBack = msg.payload;\nmsg.verify = {\n    address: msg.topic,\n    written: written,\n    readBack: readBack,\n    match: written === readBack || Math.abs(written - readBack) < 0.01\n};\nconst ok = msg.verify.match;\nnode.status({\n    fill: ok ? 'green' : 'red',\n    shape: 'dot',\n    text: ok ? `OK: ${readBack}` : `FAIL: wrote ${written}, got ${readBack}`\n});\nreturn msg;",
+    "outputs": 1,
+    "x": 650,
+    "y": 990,
+    "wires": [
+      [
+        "debug-s7300-verify"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-verify",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Write Verify",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 870,
+    "y": 990
+  },
+  {
+    "id": "comment-s7300-trigger",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 5. Trigger/Polling: Merker ueberwachen ---",
+    "info": "",
+    "x": 240,
+    "y": 1070
+  },
+  {
+    "id": "trigger-s7300-mb0",
+    "type": "s7-trigger",
+    "z": "tab-s7-300",
+    "name": "Poll MB0 (any, 2s)",
+    "server": "config-s7-300",
+    "address": "MB0",
+    "interval": 2000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 170,
+    "y": 1130,
+    "wires": [
+      [
+        "debug-s7300-trigger-mb0"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-trigger-mb0",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Trigger: MB0 changed",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 440,
+    "y": 1130
+  },
+  {
+    "id": "trigger-s7300-m00-rising",
+    "type": "s7-trigger",
+    "z": "tab-s7-300",
+    "name": "Poll M0.0 (rising edge, 1s)",
+    "server": "config-s7-300",
+    "address": "M0.0",
+    "interval": 1000,
+    "edgeMode": "rising",
+    "deadband": 0,
+    "x": 200,
+    "y": 1190,
+    "wires": [
+      [
+        "debug-s7300-trigger-rising"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-trigger-rising",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Trigger: M0.0 rising",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 470,
+    "y": 1190
+  },
+  {
+    "id": "trigger-s7300-inputs",
+    "type": "s7-trigger",
+    "z": "tab-s7-300",
+    "name": "Poll Eingaenge (IB0 IB1, 1s)",
+    "server": "config-s7-300",
+    "address": "IB0 IB1",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 210,
+    "y": 1250,
+    "wires": [
+      [
+        "debug-s7300-trigger-inputs"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-trigger-inputs",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Trigger: Eingaenge",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 470,
+    "y": 1250
+  },
+  {
+    "id": "comment-s7300-buffer",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 6. Raw Buffer: Merker-Bereich als Hex ---",
+    "info": "",
+    "x": 240,
+    "y": 1320
+  },
+  {
+    "id": "inject-s7300-buffer",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Read MB0..MB9 as Buffer",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB0.10"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "MB0.10",
+    "x": 190,
+    "y": 1380,
+    "wires": [
+      [
+        "read-s7300-buffer"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7300-buffer",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read Buffer (10 bytes)",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "buffer",
+    "topic": "",
+    "schema": "[]",
+    "x": 450,
+    "y": 1380,
+    "wires": [
+      [
+        "s7300-buffer-hex"
+      ]
+    ]
+  },
+  {
+    "id": "s7300-buffer-hex",
+    "type": "function",
+    "z": "tab-s7-300",
+    "name": "Format Hex",
+    "func": "if (Buffer.isBuffer(msg.payload)) {\n    const buf = msg.payload;\n    msg.hex = buf.toString('hex').match(/.{1,2}/g).join(' ');\n    msg.bytes = Array.from(buf);\n    node.status({text: msg.hex});\n}\nreturn msg;",
+    "outputs": 1,
+    "x": 670,
+    "y": 1380,
+    "wires": [
+      [
+        "debug-s7300-buffer"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-buffer",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Buffer Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 870,
+    "y": 1380
+  },
+  {
+    "id": "comment-s7300-roundtrip",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 7. Write+Read Roundtrip Test ---",
+    "info": "Schreibt Wert, liest zurueck, vergleicht",
+    "x": 220,
+    "y": 1450
+  },
+  {
+    "id": "inject-s7300-roundtrip",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Roundtrip: 0xAA -> MB5",
+    "props": [
+      {
+        "p": "payload",
+        "v": "170",
+        "vt": "num"
+      },
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "MB5"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 190,
+    "y": 1510,
+    "wires": [
+      [
+        "roundtrip-s7300-write"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-s7300-write",
+    "type": "s7-write",
+    "z": "tab-s7-300",
+    "name": "Write",
+    "server": "config-s7-300",
+    "address": "",
+    "x": 410,
+    "y": 1510,
+    "wires": [
+      [
+        "roundtrip-s7300-save"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-s7300-save",
+    "type": "function",
+    "z": "tab-s7-300",
+    "name": "Save written value",
+    "func": "msg._written = msg.payload;\nreturn msg;",
+    "outputs": 1,
+    "x": 430,
+    "y": 1570,
+    "wires": [
+      [
+        "roundtrip-s7300-delay"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-s7300-delay",
+    "type": "delay",
+    "z": "tab-s7-300",
+    "name": "Wait 500ms",
+    "pauseType": "delay",
+    "timeout": "500",
+    "timeoutUnits": "milliseconds",
+    "rate": "1",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "x": 430,
+    "y": 1630,
+    "wires": [
+      [
+        "roundtrip-s7300-read"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-s7300-read",
+    "type": "s7-read",
+    "z": "tab-s7-300",
+    "name": "Read back",
+    "server": "config-s7-300",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "schema": "[]",
+    "x": 430,
+    "y": 1690,
+    "wires": [
+      [
+        "roundtrip-s7300-check"
+      ]
+    ]
+  },
+  {
+    "id": "roundtrip-s7300-check",
+    "type": "function",
+    "z": "tab-s7-300",
+    "name": "Verify Roundtrip",
+    "func": "const written = msg._written;\nconst readBack = msg.payload;\nconst match = (written === readBack);\nmsg.result = {\n    status: match ? 'PASS' : 'FAIL',\n    address: msg.topic,\n    written: written,\n    readBack: readBack\n};\nnode.status({\n    fill: match ? 'green' : 'red',\n    shape: 'dot',\n    text: match ? `PASS: ${readBack}` : `FAIL: ${written} != ${readBack}`\n});\nreturn msg;",
+    "outputs": 1,
+    "x": 660,
+    "y": 1690,
+    "wires": [
+      [
+        "debug-s7300-roundtrip"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-roundtrip",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Roundtrip Result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 890,
+    "y": 1690
+  },
+  {
+    "id": "comment-s7300-cleanup",
+    "type": "comment",
+    "z": "tab-s7-300",
+    "name": "--- 8. Aufraeumen: Merker auf 0 setzen ---",
+    "info": "",
+    "x": 230,
+    "y": 1760
+  },
+  {
+    "id": "inject-s7300-cleanup",
+    "type": "inject",
+    "z": "tab-s7-300",
+    "name": "Reset MB0..MB9 = 0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "true",
+        "vt": "bool"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "x": 170,
+    "y": 1820,
+    "wires": [
+      [
+        "s7300-cleanup-fn"
+      ]
+    ]
+  },
+  {
+    "id": "s7300-cleanup-fn",
+    "type": "function",
+    "z": "tab-s7-300",
+    "name": "Generate reset msgs",
+    "func": "for (let i = 0; i < 10; i++) {\n    node.send({ topic: 'MB' + i, payload: 0 });\n}\nreturn null;",
+    "outputs": 1,
+    "x": 420,
+    "y": 1820,
+    "wires": [
+      [
+        "write-s7300-cleanup"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7300-cleanup",
+    "type": "s7-write",
+    "z": "tab-s7-300",
+    "name": "Write 0",
+    "server": "config-s7-300",
+    "address": "",
+    "x": 630,
+    "y": 1820,
+    "wires": [
+      [
+        "debug-s7300-cleanup"
+      ]
+    ]
+  },
+  {
+    "id": "debug-s7300-cleanup",
+    "type": "debug",
+    "z": "tab-s7-300",
+    "name": "Cleanup done",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 830,
+    "y": 1820
   }
 ]

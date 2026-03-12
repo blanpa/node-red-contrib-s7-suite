@@ -14,5 +14,5 @@ Node-RED package for Siemens S7 PLC communication with dual backend support (nod
 - src/types/ - Type definitions
 - src/backend/ - IS7Backend interface + NodeS7Backend + Snap7Backend + BackendFactory
 - src/core/ - ConnectionManager, AddressParser, DataConverter, RateLimiter, Poller
-- src/nodes/ - 5 Node-RED nodes (s7-config, s7-read, s7-write, s7-trigger, s7-browse)
+- src/nodes/ - 6 Node-RED nodes (s7-config, s7-read, s7-write, s7-trigger, s7-browse, s7-control)
 - test/ - Jest tests with MockBackend helper

@@ -9,6 +9,8 @@
       scopeM: { value: false },
       scopeI: { value: false },
       scopeQ: { value: false },
+      scopeC: { value: false },
+      scopeT: { value: false },
       maxDbNumber: { value: 999, validate: RED.validators.number() }
     },
     inputs: 1,
@@ -63,6 +65,18 @@
       Outputs (Q)
     </label>
   </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeC" style="width: auto; margin-right: 5px;">
+      Counters (C)
+    </label>
+  </div>
+  <div class="form-row" style="margin-left: 20px;">
+    <label style="width: auto;">
+      <input type="checkbox" id="node-input-scopeT" style="width: auto; margin-right: 5px;">
+      Timers (T)
+    </label>
+  </div>
   <div class="form-row">
     <label for="node-input-maxDbNumber"><i class="fa fa-sort-numeric-asc"></i> Max DB Number</label>
     <input type="number" id="node-input-maxDbNumber" placeholder="999">
@@ -83,7 +97,31 @@
   </dl>
   <h3>Outputs</h3>
   <dl class="message-properties">
-    <dt>payload <span class="property-type">object</span></dt>
-    <dd>Browse result with blocks and areas</dd>
+    <dt>payload.blocks <span class="property-type">array</span></dt>
+    <dd>List of discovered blocks with type, number, and size</dd>
+    <dt>payload.areas <span class="property-type">array</span></dt>
+    <dd>List of accessible memory areas (Merker, Input, Output) with sizes</dd>
+    <dt>payload.addresses <span class="property-type">array</span></dt>
+    <dd>Enumerated addresses with current values</dd>
+    <dt class="optional">payload.cpuInfo <span class="property-type">object</span></dt>
+    <dd>CPU information (snap7 backend only)</dd>
   </dl>
+  <h3>Details</h3>
+  <p>Send any message to start browsing. Progress is shown in the node status.</p>
+  <h4>Scope</h4>
+  <p>Select which memory areas to scan:</p>
+  <ul>
+    <li><b>Data Blocks (DB):</b> Scans for data blocks (default: enabled)</li>
+    <li><b>Merker (M):</b> Scan Merker/flag memory</li>
+    <li><b>Inputs (I):</b> Scan input image area</li>
+    <li><b>Outputs (Q):</b> Scan output image area</li>
+  </ul>
+  <h4>Backend Differences</h4>
+  <ul>
+    <li><b>snap7:</b> Uses native block listing API (fast, accurate)</li>
+    <li><b>nodes7:</b> Probe-based discovery with rate limiting (slower, max DB number configurable)</li>
+  </ul>
+  <h4>Max DB Number</h4>
+  <p>For nodes7 backend only: the highest DB number to probe. Default: 999.
+  Lower values speed up the scan.</p>
 </script>

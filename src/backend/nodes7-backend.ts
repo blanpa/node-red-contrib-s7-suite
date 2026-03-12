@@ -45,9 +45,14 @@ export class NodeS7Backend implements IS7Backend {
 
   async disconnect(): Promise<void> {
     if (this.conn) {
-      this.conn.dropConnection();
-      this.connected = false;
-      this.conn = null;
+      try {
+        this.conn.dropConnection();
+      } catch {
+        // ignore disconnect errors
+      } finally {
+        this.connected = false;
+        this.conn = null;
+      }
     }
   }
 
@@ -60,43 +65,47 @@ export class NodeS7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
-    const addressMap: Record<string, S7ReadItem> = {};
-    for (const item of items) {
-      const addr = item.nodes7Address ?? toNodes7Address(item.address);
-      addressMap[item.name] = item;
+    const addrList = items.map((i) => i.nodes7Address ?? toNodes7Address(i.address));
+    for (const addr of addrList) {
       this.conn.addItems(addr);
     }
 
-    const addrList = items.map((i) => i.nodes7Address ?? toNodes7Address(i.address));
+    const removeAll = (): void => {
+      for (const addr of addrList) {
+        this.conn.removeItems(addr);
+      }
+    };
 
     return new Promise<S7ReadResult[]>((resolve, reject) => {
-      this.conn.readAllItems((err: Error | undefined, values: Record<string, unknown>) => {
-        // Remove items after reading
-        for (const addr of addrList) {
-          this.conn.removeItems(addr);
-        }
+      try {
+        this.conn.readAllItems((err: Error | undefined, values: Record<string, unknown>) => {
+          removeAll();
 
-        if (err) {
-          reject(new S7Error(S7ErrorCode.READ_FAILED, `nodes7 read failed: ${err.message}`, err));
-          return;
-        }
+          if (err) {
+            reject(new S7Error(S7ErrorCode.READ_FAILED, `nodes7 read failed: ${err.message}`, err));
+            return;
+          }
 
-        const results: S7ReadResult[] = items.map((item) => {
-          const addr = item.nodes7Address ?? toNodes7Address(item.address);
-          const value = values[addr];
-          const isBad = value === undefined || value === null;
-          return {
-            name: item.name,
-            address: item.address,
-            value: isBad ? null : value,
-            quality: isBad ? 'bad' : 'good',
-            timestamp: Date.now(),
-            error: isBad ? 'No value returned' : undefined,
-          };
+          const results: S7ReadResult[] = items.map((item) => {
+            const addr = item.nodes7Address ?? toNodes7Address(item.address);
+            const value = values[addr];
+            const isBad = value === undefined || value === null;
+            return {
+              name: item.name,
+              address: item.address,
+              value: isBad ? null : value,
+              quality: isBad ? 'bad' : 'good',
+              timestamp: Date.now(),
+              error: isBad ? 'No value returned' : undefined,
+            };
+          });
+
+          resolve(results);
         });
-
-        resolve(results);
-      });
+      } catch (e) {
+        removeAll();
+        throw e;
+      }
     });
   }
 
@@ -115,17 +124,26 @@ export class NodeS7Backend implements IS7Backend {
       values.push(item.value);
     }
 
+    const removeAll = (): void => {
+      for (const name of names) {
+        this.conn.removeItems(name);
+      }
+    };
+
     return new Promise<void>((resolve, reject) => {
-      this.conn.writeItems(names, values, (err: Error | undefined) => {
-        for (const name of names) {
-          this.conn.removeItems(name);
-        }
-        if (err) {
-          reject(new S7Error(S7ErrorCode.WRITE_FAILED, `nodes7 write failed: ${err.message}`, err));
-        } else {
-          resolve();
-        }
-      });
+      try {
+        this.conn.writeItems(names, values, (err: Error | undefined) => {
+          removeAll();
+          if (err) {
+            reject(new S7Error(S7ErrorCode.WRITE_FAILED, `nodes7 write failed: ${err.message}`, err));
+          } else {
+            resolve();
+          }
+        });
+      } catch (e) {
+        removeAll();
+        throw e;
+      }
     });
   }
 
@@ -151,7 +169,7 @@ export class NodeS7Backend implements IS7Backend {
     if (areaPrefix === 'DB') {
       addr = `DB${dbNumber},BYTE${start}.${length}`;
     } else {
-      addr = `${areaPrefix}B${start}`;
+      addr = `${areaPrefix}B${start}.${length}`;
     }
 
     this.conn.addItems(addr);

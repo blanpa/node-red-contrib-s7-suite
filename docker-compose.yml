@@ -1,15 +1,23 @@
 services:
   node-red:
-    build: .
-    image: node-red-s7-suite
+    image: nodered/node-red:4.1.7-22-minimal
     container_name: node-red-s7-suite
     restart: unless-stopped
-    ports:
-      - "1880:1880"
+    network_mode: host
     volumes:
       - node-red-data:/data
+      - ./:/opt/s7-suite:ro
     environment:
       - TZ=Europe/Berlin
+      - NODE_RED_PORT=1885
+    entrypoint: >
+      sh -c "
+        cd /opt/s7-suite && npm pack --pack-destination /tmp &&
+        cd /usr/src/node-red &&
+        npm install /tmp/node-red-contrib-s7-suite-*.tgz &&
+        cp /opt/s7-suite/examples/test-flows.json /data/flows.json 2>/dev/null;
+        npm start -- --userDir /data --port 1885
+      "
 
 volumes:
   node-red-data:

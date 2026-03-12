@@ -29,7 +29,7 @@ describe('NodeS7Backend', () => {
 
   describe('connect', () => {
     it('connects successfully', async () => {
-      mockInitiateConnection.mockImplementation((_params: any, cb: Function) => cb());
+      mockInitiateConnection.mockImplementation((_params: unknown, cb: Function) => cb());
 
       await backend.connect({
         host: '192.168.1.100',
@@ -45,7 +45,7 @@ describe('NodeS7Backend', () => {
     });
 
     it('handles connection error', async () => {
-      mockInitiateConnection.mockImplementation((_params: any, cb: Function) =>
+      mockInitiateConnection.mockImplementation((_params: unknown, cb: Function) =>
         cb(new Error('Connection refused')),
       );
 
@@ -62,7 +62,7 @@ describe('NodeS7Backend', () => {
     });
 
     it('passes TSAP params', async () => {
-      mockInitiateConnection.mockImplementation((params: any, cb: Function) => {
+      mockInitiateConnection.mockImplementation((params: Record<string, unknown>, cb: Function) => {
         expect(params.localTSAP).toBe(0x0100);
         expect(params.remoteTSAP).toBe(0x0200);
         cb();
@@ -83,7 +83,7 @@ describe('NodeS7Backend', () => {
 
   describe('disconnect', () => {
     it('disconnects cleanly', async () => {
-      mockInitiateConnection.mockImplementation((_p: any, cb: Function) => cb());
+      mockInitiateConnection.mockImplementation((_p: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'nodes7',
       });
@@ -96,7 +96,7 @@ describe('NodeS7Backend', () => {
 
   describe('read', () => {
     beforeEach(async () => {
-      mockInitiateConnection.mockImplementation((_p: any, cb: Function) => cb());
+      mockInitiateConnection.mockImplementation((_p: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'nodes7',
       });
@@ -151,14 +151,14 @@ describe('NodeS7Backend', () => {
 
   describe('write', () => {
     beforeEach(async () => {
-      mockInitiateConnection.mockImplementation((_p: any, cb: Function) => cb());
+      mockInitiateConnection.mockImplementation((_p: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'nodes7',
       });
     });
 
     it('writes values successfully', async () => {
-      mockWriteItems.mockImplementation((_names: any, _values: any, cb: Function) => {
+      mockWriteItems.mockImplementation((_names: unknown, _values: unknown, cb: Function) => {
         cb();
       });
 
@@ -175,7 +175,7 @@ describe('NodeS7Backend', () => {
     });
 
     it('handles write error', async () => {
-      mockWriteItems.mockImplementation((_n: any, _v: any, cb: Function) => {
+      mockWriteItems.mockImplementation((_n: unknown, _v: unknown, cb: Function) => {
         cb(new Error('Write failed'));
       });
 

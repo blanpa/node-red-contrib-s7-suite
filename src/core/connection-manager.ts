@@ -20,18 +20,21 @@ export class ConnectionManager extends EventEmitter {
   private processing = false;
   private maxQueueSize = 100;
 
-  constructor(backend: IS7Backend, config: S7ConnectionConfig) {
+  constructor(backend: IS7Backend, config: S7ConnectionConfig, maxQueueSize = 100) {
     super();
     this.setMaxListeners(50);
     this.backend = backend;
     this.config = config;
+    this.maxQueueSize = maxQueueSize;
     this.reconnectDelay = config.reconnectInterval ?? 1000;
   }
 
+  /** Returns the current connection state. */
   getState(): ConnectionState {
     return this.state;
   }
 
+  /** Establishes a connection to the PLC, scheduling reconnection on failure. */
   async connect(): Promise<void> {
     if (this.state === 'connected' || this.state === 'connecting') return;
 
@@ -48,6 +51,7 @@ export class ConnectionManager extends EventEmitter {
     }
   }
 
+  /** Disconnects from the PLC, cancelling any pending reconnect and draining the queue. */
   async disconnect(): Promise<void> {
     this.clearReconnectTimer();
     this.rejectPendingQueue();
@@ -58,18 +62,22 @@ export class ConnectionManager extends EventEmitter {
     this.setState('disconnected');
   }
 
+  /** Queues a read request for one or more S7 items. */
   async read(items: S7ReadItem[]): Promise<S7ReadResult[]> {
     return this.enqueue(() => this.backend.read(items)) as Promise<S7ReadResult[]>;
   }
 
+  /** Queues a write request for one or more S7 items. */
   async write(items: S7WriteItem[]): Promise<void> {
     return this.enqueue(() => this.backend.write(items)) as Promise<void>;
   }
 
+  /** Queues a raw memory area read from the PLC. */
   async readRawArea(area: number, dbNumber: number, start: number, length: number): Promise<Buffer> {
     return this.enqueue(() => this.backend.readRawArea(area, dbNumber, start, length)) as Promise<Buffer>;
   }
 
+  /** Returns the underlying S7 backend instance. */
   getBackend(): IS7Backend {
     return this.backend;
   }
@@ -95,9 +103,16 @@ export class ConnectionManager extends EventEmitter {
     this.processing = true;
 
     while (this.queue.length > 0) {
-      const entry = this.queue.shift()!;
+      const entry = this.queue.shift();
+      if (!entry) break;
       try {
-        const result = await entry.execute();
+        const timeoutMs = this.config.requestTimeout ?? 3000;
+        const result = await Promise.race([
+          entry.execute(),
+          new Promise((_resolve, reject) => {
+            setTimeout(() => reject(new S7Error(S7ErrorCode.REQUEST_TIMEOUT, 'Request timed out')), timeoutMs);
+          }),
+        ]);
         entry.resolve(result);
       } catch (err) {
         entry.reject(err);
@@ -164,7 +179,8 @@ export class ConnectionManager extends EventEmitter {
       return (
         err.code === S7ErrorCode.CONNECTION_FAILED ||
         err.code === S7ErrorCode.DISCONNECTED ||
-        err.code === S7ErrorCode.CONNECTION_TIMEOUT
+        err.code === S7ErrorCode.CONNECTION_TIMEOUT ||
+        err.code === S7ErrorCode.REQUEST_TIMEOUT
       );
     }
     return false;

@@ -18,6 +18,7 @@ export interface S7ConnectionConfig {
   backend: BackendType;
   localTSAP?: number;
   remoteTSAP?: number;
+  password?: string;
   connectionTimeout?: number;
   requestTimeout?: number;
   reconnectInterval?: number;

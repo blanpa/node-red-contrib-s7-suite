@@ -2,13 +2,13 @@ import { S7Address, S7AreaType, S7DataType } from '../types';
 import { S7Error, S7ErrorCode } from '../utils/error-codes';
 
 const NODES7_REGEX =
-  /^(DB)(\d+),(BOOL|BYTE|WORD|DWORD|INT|DINT|REAL|LREAL|CHAR|STRING)(\d+)(?:\.(\d))?(?:\.(\d+))?$/i;
+  /^(DB)(\d+),(BOOL|BYTE|WORD|DWORD|INT|DINT|REAL|LREAL|CHAR|STRING|USINT|UINT|UDINT|LINT|ULINT|DATE|TIME|TIME_OF_DAY|DATE_AND_TIME|S5TIME|WSTRING)(\d+)(?:\.(\d))?(?:\.(\d+))?$/i;
 
 const IEC_REGEX =
-  /^(DB)(\d+)\.(DBX|DBB|DBW|DBD|DBD)(\d+)(?:\.(\d))?$/i;
+  /^(DB)(\d+)\.(DBX|DBB|DBW|DBD)(\d+)(?:\.(\d))?$/i;
 
 const AREA_REGEX =
-  /^([MIQCT])(X|B|W|D)?(\d+)(?:\.(\d))?$/i;
+  /^([MIQCT])(X|B|W|D)?(\d+)(?:\.(\d))?(?:\.(\d+))?$/i;
 
 const IEC_TYPE_MAP: Record<string, S7DataType> = {
   DBX: 'BOOL',
@@ -32,6 +32,7 @@ const AREA_LETTER_MAP: Record<string, S7AreaType> = {
   T: 'T',
 };
 
+/** Splits a whitespace- or semicolon-delimited string into individual S7 address strings. */
 export function splitAddresses(input: string): string[] {
   const results: string[] = [];
   let current = '';
@@ -81,19 +82,36 @@ export function splitAddresses(input: string): string[] {
   return results;
 }
 
+/**
+ * Parses an S7 address string into a structured S7Address object.
+ * Supports nodes7-style (DB1,REAL0), IEC-style (DB1.DBD0), and area-style (MW4, I0.1).
+ * @throws S7Error with INVALID_ADDRESS code for unparsable or invalid addresses
+ */
 export function parseAddress(input: string): S7Address {
   const trimmed = input.trim();
 
   let result = tryParseNodes7Style(trimmed);
-  if (result) return result;
+  if (!result) result = tryParseIECStyle(trimmed);
+  if (!result) result = tryParseAreaStyle(trimmed);
 
-  result = tryParseIECStyle(trimmed);
-  if (result) return result;
+  if (!result) {
+    throw new S7Error(S7ErrorCode.INVALID_ADDRESS, `Cannot parse address: "${input}"`);
+  }
 
-  result = tryParseAreaStyle(trimmed);
-  if (result) return result;
+  validateAddress(result, input);
+  return result;
+}
 
-  throw new S7Error(S7ErrorCode.INVALID_ADDRESS, `Cannot parse address: "${input}"`);
+function validateAddress(addr: S7Address, raw: string): void {
+  if (addr.offset < 0) {
+    throw new S7Error(S7ErrorCode.INVALID_ADDRESS, `Negative offset in address: "${raw}"`);
+  }
+  if (addr.area === 'DB' && addr.dbNumber < 1) {
+    throw new S7Error(S7ErrorCode.INVALID_ADDRESS, `DB number must be >= 1 in address: "${raw}"`);
+  }
+  if (addr.dataType === 'BOOL' && (addr.bitOffset < 0 || addr.bitOffset > 7)) {
+    throw new S7Error(S7ErrorCode.INVALID_ADDRESS, `Bit offset must be 0-7 for BOOL in address: "${raw}"`);
+  }
 }
 
 function tryParseNodes7Style(input: string): S7Address | null {
@@ -148,6 +166,7 @@ function tryParseAreaStyle(input: string): S7Address | null {
   const sizeLetter = match[2]?.toUpperCase();
   const offset = parseInt(match[3], 10);
   const bitOffset = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+  const arrayLength = match[5] !== undefined ? parseInt(match[5], 10) : undefined;
 
   let dataType: S7DataType;
   if (sizeLetter) {
@@ -158,15 +177,22 @@ function tryParseAreaStyle(input: string): S7Address | null {
     dataType = 'BYTE';
   }
 
+  // S7 counters/timers are 16-bit values; default to WORD when no size letter is given
+  if ((area === 'C' || area === 'T') && !sizeLetter && match[4] === undefined) {
+    dataType = 'WORD';
+  }
+
   return {
     area,
     dbNumber: 0,
     dataType,
     offset,
     bitOffset,
+    arrayLength,
   };
 }
 
+/** Converts a structured S7Address object back into a nodes7-compatible address string. */
 export function toNodes7Address(addr: S7Address): string {
   if (addr.area === 'DB') {
     let result = `DB${addr.dbNumber},${addr.dataType}${addr.offset}`;
@@ -193,5 +219,9 @@ export function toNodes7Address(addr: S7Address): string {
     REAL: 'D',
   };
   const sizeLetter = sizeMap[addr.dataType] || 'B';
-  return `${prefix}${sizeLetter}${addr.offset}`;
+  let result = `${prefix}${sizeLetter}${addr.offset}`;
+  if (addr.arrayLength !== undefined) {
+    result += `.${addr.arrayLength}`;
+  }
+  return result;
 }

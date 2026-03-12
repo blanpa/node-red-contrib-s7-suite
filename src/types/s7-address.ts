@@ -8,9 +8,30 @@ export type S7DataType =
   | 'REAL'
   | 'LREAL'
   | 'CHAR'
-  | 'STRING';
+  | 'STRING'
+  | 'USINT'
+  | 'UINT'
+  | 'UDINT'
+  | 'LINT'
+  | 'ULINT'
+  | 'DATE'
+  | 'TIME'
+  | 'TIME_OF_DAY'
+  | 'DATE_AND_TIME'
+  | 'S5TIME'
+  | 'WSTRING';
 
 export type S7AreaType = 'DB' | 'M' | 'I' | 'Q' | 'C' | 'T';
+
+/** Snap7 area codes for each S7 memory area */
+export const AREA_CODE_MAP: Record<S7AreaType, number> = {
+  DB: 0x84,
+  M: 0x83,
+  I: 0x81,
+  Q: 0x82,
+  C: 0x1c,
+  T: 0x1d,
+};
 
 export interface S7Address {
   area: S7AreaType;
@@ -20,6 +41,14 @@ export interface S7Address {
   bitOffset: number;
   arrayLength?: number;
   stringLength?: number;
+}
+
+export interface S7StructField {
+  name: string;
+  type: S7DataType;
+  offset: number;
+  bit?: number;
+  length?: number; // for STRING
 }
 
 export interface S7ReadItem {

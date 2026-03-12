@@ -39,16 +39,18 @@ export class RateLimiter {
     }
 
     if (this.tokens <= 0) {
-      const waitTime = this.config.interval - (Date.now() - this.lastRefill);
+      const waitTime = Math.max(0, this.config.interval - (now - this.lastRefill));
       if (waitTime > 0) {
         await this.delay(waitTime);
       }
+      const refillNow = Date.now();
       this.tokens = this.config.tokensPerInterval;
-      this.lastRefill = Date.now();
+      this.lastRefill = refillNow;
     }
 
     this.tokens--;
-    this.lastRequest = Date.now();
+    const afterNow = Date.now();
+    this.lastRequest = afterNow;
   }
 
   getAvailableTokens(): number {

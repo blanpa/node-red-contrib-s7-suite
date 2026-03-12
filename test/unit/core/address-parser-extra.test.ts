@@ -12,13 +12,13 @@ describe('address-parser - extra coverage', () => {
   it('parses C area', () => {
     const addr = parseAddress('C0');
     expect(addr.area).toBe('C');
-    expect(addr.dataType).toBe('BYTE');
+    expect(addr.dataType).toBe('WORD');
   });
 
   it('parses T area', () => {
     const addr = parseAddress('T0');
     expect(addr.area).toBe('T');
-    expect(addr.dataType).toBe('BYTE');
+    expect(addr.dataType).toBe('WORD');
   });
 
   it('toNodes7Address for INT uses W', () => {

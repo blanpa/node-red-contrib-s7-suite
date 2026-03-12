@@ -40,7 +40,7 @@ describe('Snap7Backend', () => {
 
   describe('connect', () => {
     it('connects with rack/slot', async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) => cb());
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
 
       await backend.connect({
         host: '192.168.1.100',
@@ -74,7 +74,7 @@ describe('Snap7Backend', () => {
     });
 
     it('handles connection failure', async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) =>
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) =>
         cb(new Error('No route to host')),
       );
 
@@ -85,11 +85,35 @@ describe('Snap7Backend', () => {
         }),
       ).rejects.toThrow('snap7 connection failed');
     });
+
+    it('handles TSAP connection failure', async () => {
+      mockConnect.mockImplementation((cb: Function) => cb(new Error('TSAP error')));
+
+      await expect(
+        backend.connect({
+          host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+          plcType: 'LOGO', backend: 'snap7',
+          localTSAP: 0x0100, remoteTSAP: 0x0200,
+        }),
+      ).rejects.toThrow('snap7 connection failed');
+    });
+
+    it('sets connectionTimeout when provided', async () => {
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
+
+      await backend.connect({
+        host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+        plcType: 'S7-1200', backend: 'snap7',
+        connectionTimeout: 5000,
+      });
+
+      expect(mockSetParam).toHaveBeenCalledWith(5, 5000);
+    });
   });
 
   describe('disconnect', () => {
     it('disconnects', async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) => cb());
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1,
         plcType: 'S7-1200', backend: 'snap7',
@@ -99,11 +123,30 @@ describe('Snap7Backend', () => {
       expect(backend.isConnected()).toBe(false);
       expect(mockDisconnect).toHaveBeenCalled();
     });
+
+    it('handles disconnect when not connected (no client)', async () => {
+      // backend never connected, client is null
+      await backend.disconnect();
+      expect(mockDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('handles disconnect error gracefully', async () => {
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
+      await backend.connect({
+        host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+        plcType: 'S7-1200', backend: 'snap7',
+      });
+
+      mockDisconnect.mockImplementation(() => { throw new Error('disconnect error'); });
+
+      await backend.disconnect();
+      expect(backend.isConnected()).toBe(false);
+    });
   });
 
   describe('read', () => {
     beforeEach(async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) => cb());
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1,
         plcType: 'S7-1200', backend: 'snap7',
@@ -114,7 +157,7 @@ describe('Snap7Backend', () => {
       const buf = Buffer.alloc(4);
       buf.writeFloatBE(3.14);
       mockReadArea.mockImplementation(
-        (_a: any, _d: any, _s: any, _l: any, _w: any, cb: Function) => cb(undefined, buf),
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => cb(undefined, buf),
       );
 
       const results = await backend.read([
@@ -131,7 +174,7 @@ describe('Snap7Backend', () => {
 
     it('handles read failure gracefully', async () => {
       mockReadArea.mockImplementation(
-        (_a: any, _d: any, _s: any, _l: any, _w: any, cb: Function) =>
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) =>
           cb(new Error('Read error')),
       );
 
@@ -145,11 +188,72 @@ describe('Snap7Backend', () => {
       expect(results[0].quality).toBe('bad');
       expect(results[0].error).toBeDefined();
     });
+
+    it('throws when not connected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(
+        freshBackend.read([
+          { name: 'x', address: { area: 'DB', dbNumber: 1, dataType: 'REAL', offset: 0, bitOffset: 0 } },
+        ]),
+      ).rejects.toThrow('Not connected');
+    });
+
+    it('returns bad quality for unsupported area', async () => {
+      const results = await backend.read([
+        {
+          name: 'invalid',
+          address: { // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          area: 'X' as any, dbNumber: 0, dataType: 'INT', offset: 0, bitOffset: 0 },
+        },
+      ]);
+
+      expect(results[0].quality).toBe('bad');
+      expect(results[0].error).toContain('Unsupported area');
+    });
+
+    it('reads array values', async () => {
+      // 3 INT values = 3 * 2 bytes = 6 bytes
+      const buf = Buffer.alloc(6);
+      buf.writeInt16BE(10, 0);
+      buf.writeInt16BE(20, 2);
+      buf.writeInt16BE(30, 4);
+      mockReadArea.mockImplementation(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => cb(undefined, buf),
+      );
+
+      const results = await backend.read([
+        {
+          name: 'arr',
+          address: { area: 'DB', dbNumber: 1, dataType: 'INT', offset: 0, bitOffset: 0, arrayLength: 3 },
+        },
+      ]);
+
+      expect(results[0].quality).toBe('good');
+      expect(results[0].value).toEqual([10, 20, 30]);
+    });
+
+    it('reads from M area', async () => {
+      const buf = Buffer.alloc(2);
+      buf.writeInt16BE(42, 0);
+      mockReadArea.mockImplementation(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => cb(undefined, buf),
+      );
+
+      const results = await backend.read([
+        {
+          name: 'mw',
+          address: { area: 'M', dbNumber: 0, dataType: 'INT', offset: 0, bitOffset: 0 },
+        },
+      ]);
+
+      expect(results[0].quality).toBe('good');
+      expect(results[0].value).toBe(42);
+    });
   });
 
   describe('write', () => {
     beforeEach(async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) => cb());
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1,
         plcType: 'S7-1200', backend: 'snap7',
@@ -158,7 +262,7 @@ describe('Snap7Backend', () => {
 
     it('writes REAL value', async () => {
       mockWriteArea.mockImplementation(
-        (_a: any, _d: any, _s: any, _l: any, _w: any, _b: any, cb: Function) => cb(),
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, _b: unknown, cb: Function) => cb(),
       );
 
       await backend.write([
@@ -175,10 +279,10 @@ describe('Snap7Backend', () => {
     it('writes BOOL with read-modify-write', async () => {
       const readBuf = Buffer.from([0x00]);
       mockReadArea.mockImplementation(
-        (_a: any, _d: any, _s: any, _l: any, _w: any, cb: Function) => cb(undefined, readBuf),
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => cb(undefined, readBuf),
       );
       mockWriteArea.mockImplementation(
-        (_a: any, _d: any, _s: any, _l: any, _w: any, _b: any, cb: Function) => cb(),
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, _b: unknown, cb: Function) => cb(),
       );
 
       await backend.write([
@@ -192,11 +296,42 @@ describe('Snap7Backend', () => {
       expect(mockReadArea).toHaveBeenCalled();
       expect(mockWriteArea).toHaveBeenCalled();
     });
+
+    it('throws when not connected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(
+        freshBackend.write([
+          { name: 'x', address: { area: 'DB', dbNumber: 1, dataType: 'REAL', offset: 0, bitOffset: 0 }, value: 1 },
+        ]),
+      ).rejects.toThrow('Not connected');
+    });
+
+    it('throws for unsupported area', async () => {
+      await expect(
+        backend.write([
+          { name: 'x', address: { // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          area: 'X' as any, dbNumber: 0, dataType: 'INT', offset: 0, bitOffset: 0 }, value: 1 },
+        ]),
+      ).rejects.toThrow('Unsupported area');
+    });
+
+    it('handles write error from WriteArea callback', async () => {
+      mockWriteArea.mockImplementation(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, _b: unknown, cb: Function) =>
+          cb(new Error('Write failed')),
+      );
+
+      await expect(
+        backend.write([
+          { name: 'x', address: { area: 'DB', dbNumber: 1, dataType: 'REAL', offset: 0, bitOffset: 0 }, value: 1.0 },
+        ]),
+      ).rejects.toThrow('snap7 write failed');
+    });
   });
 
   describe('browse', () => {
     beforeEach(async () => {
-      mockConnectTo.mockImplementation((_h: any, _r: any, _s: any, cb: Function) => cb());
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
       await backend.connect({
         host: '192.168.1.100', port: 102, rack: 0, slot: 1,
         plcType: 'S7-1200', backend: 'snap7',
@@ -215,7 +350,7 @@ describe('Snap7Backend', () => {
     });
 
     it('lists blocks of type', async () => {
-      mockListBlocksOfType.mockImplementation((_t: any, cb: Function) =>
+      mockListBlocksOfType.mockImplementation((_t: unknown, cb: Function) =>
         cb(undefined, [1, 2, 3]),
       );
 
@@ -224,7 +359,7 @@ describe('Snap7Backend', () => {
     });
 
     it('gets block info', async () => {
-      mockGetAgBlockInfo.mockImplementation((_t: any, _n: any, cb: Function) =>
+      mockGetAgBlockInfo.mockImplementation((_t: unknown, _n: unknown, cb: Function) =>
         cb(undefined, {
           MC7Size: 100,
           Author: 'TEST',
@@ -239,12 +374,119 @@ describe('Snap7Backend', () => {
 
     it('reads SZL', async () => {
       const szlBuf = Buffer.from([0x01, 0x02]);
-      mockReadSZL.mockImplementation((_id: any, _idx: any, cb: Function) =>
+      mockReadSZL.mockImplementation((_id: unknown, _idx: unknown, cb: Function) =>
         cb(undefined, szlBuf),
       );
 
       const result = await backend.readSZL(0x001c, 0);
       expect(result).toEqual(szlBuf);
+    });
+
+    it('handles listBlocks error', async () => {
+      mockListBlocks.mockImplementation((cb: Function) =>
+        cb(new Error('ListBlocks error')),
+      );
+
+      await expect(backend.listBlocks()).rejects.toThrow('ListBlocks failed');
+    });
+
+    it('handles listBlocksOfType error', async () => {
+      mockListBlocksOfType.mockImplementation((_t: unknown, cb: Function) =>
+        cb(new Error('ListBlocksOfType error')),
+      );
+
+      await expect(backend.listBlocksOfType('DB')).rejects.toThrow('ListBlocksOfType failed');
+    });
+
+    it('handles getBlockInfo error', async () => {
+      mockGetAgBlockInfo.mockImplementation((_t: unknown, _n: unknown, cb: Function) =>
+        cb(new Error('GetBlockInfo error')),
+      );
+
+      await expect(backend.getBlockInfo('DB', 1)).rejects.toThrow('GetBlockInfo failed');
+    });
+
+    it('gets block info with version', async () => {
+      mockGetAgBlockInfo.mockImplementation((_t: unknown, _n: unknown, cb: Function) =>
+        cb(undefined, {
+          MC7Size: 200,
+          Author: 'AUTH',
+          Family: 'FAM',
+          Header: 'HDR',
+          Version: 0x31, // version 3.1
+          CodeDate: '2024-01-01',
+        }),
+      );
+
+      const result = await backend.getBlockInfo('DB', 2);
+      expect(result.sizeData).toBe(200);
+      expect(result.version).toBe('3.1');
+      expect(result.name).toBe('HDR');
+      expect(result.date).toBe('2024-01-01');
+    });
+
+    it('gets block info with SizeData fallback', async () => {
+      mockGetAgBlockInfo.mockImplementation((_t: unknown, _n: unknown, cb: Function) =>
+        cb(undefined, {
+          SizeData: 150,
+          Author: 'A',
+          Family: 'F',
+        }),
+      );
+
+      const result = await backend.getBlockInfo('FC', 1);
+      expect(result.sizeData).toBe(150);
+      expect(result.blockType).toBe('FC');
+    });
+
+    it('handles readSZL error', async () => {
+      mockReadSZL.mockImplementation((_id: unknown, _idx: unknown, cb: Function) =>
+        cb(new Error('ReadSZL error')),
+      );
+
+      await expect(backend.readSZL(0x001c, 0)).rejects.toThrow('ReadSZL failed');
+    });
+
+    it('throws when listBlocks called while disconnected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(freshBackend.listBlocks()).rejects.toThrow('Not connected');
+    });
+
+    it('throws when listBlocksOfType called while disconnected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(freshBackend.listBlocksOfType('DB')).rejects.toThrow('Not connected');
+    });
+
+    it('throws when getBlockInfo called while disconnected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(freshBackend.getBlockInfo('DB', 1)).rejects.toThrow('Not connected');
+    });
+
+    it('throws when readSZL called while disconnected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(freshBackend.readSZL(0x001c, 0)).rejects.toThrow('Not connected');
+    });
+  });
+
+  describe('readRawArea', () => {
+    it('throws when not connected', async () => {
+      const freshBackend = new Snap7Backend();
+      await expect(freshBackend.readRawArea(0x84, 1, 0, 4)).rejects.toThrow('Not connected');
+    });
+
+    it('handles ReadArea error callback', async () => {
+      mockConnectTo.mockImplementation((_h: unknown, _r: unknown, _s: unknown, cb: Function) => cb());
+      await backend.connect({
+        host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+        plcType: 'S7-1200', backend: 'snap7',
+      });
+
+      mockReadArea.mockImplementation(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) =>
+          cb(new Error('Area read error')),
+      );
+
+      await expect(backend.readRawArea(0x84, 1, 0, 4)).rejects.toThrow('snap7 read failed');
     });
   });
 });

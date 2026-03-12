@@ -7,7 +7,8 @@
       server: { value: '', type: 's7-config', required: true },
       address: { value: '' },
       outputMode: { value: 'single' },
-      topic: { value: '' }
+      topic: { value: '' },
+      schema: { value: '[]' }
     },
     inputs: 1,
     outputs: 1,
@@ -52,18 +53,114 @@
         serverId: '#node-input-server',
         addressId: null,
         mode: 'list',
-        listRef: addrList
+        listRef: addrList,
+        refreshId: '#s7r-browse-refresh'
       });
+
+      // Schema editableList for struct mode
+      var S7_TYPES = ['BOOL','BYTE','WORD','DWORD','INT','DINT','REAL','LREAL','CHAR','STRING'];
+      var schemaList = $('#s7r-schema-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
+        addButton: 'Add field',
+        removable: true,
+        sortable: true,
+        addItem: function (row, index, data) {
+          var nameInput = $('<input type="text" placeholder="Field name" style="width:22%;">').val(data.name || '');
+          var typeSelect = $('<select style="width:22%;margin-left:2%;">');
+          S7_TYPES.forEach(function(t) {
+            typeSelect.append($('<option>').val(t).text(t));
+          });
+          typeSelect.val(data.type || 'REAL');
+          var offsetInput = $('<input type="number" placeholder="Offset" style="width:18%;margin-left:2%;" min="0">').val(data.offset != null ? data.offset : '');
+          var bitInput = $('<input type="number" placeholder="Bit" style="width:14%;margin-left:2%;" min="0" max="7">').val(data.bit != null ? data.bit : '');
+          var lenInput = $('<input type="number" placeholder="Str len" style="width:14%;margin-left:2%;" min="1">').val(data.length != null ? data.length : '');
+
+          function updateVisibility() {
+            var t = typeSelect.val();
+            bitInput.toggle(t === 'BOOL');
+            lenInput.toggle(t === 'STRING');
+          }
+          typeSelect.on('change', updateVisibility);
+
+          row.append(nameInput, typeSelect, offsetInput, bitInput, lenInput);
+          updateVisibility();
+        }
+      });
+
+      // Load existing schema
+      try {
+        var schemaArr = JSON.parse(node.schema || '[]');
+        if (Array.isArray(schemaArr)) {
+          schemaArr.forEach(function (f) {
+            schemaList.editableList('addItem', f);
+          });
+        }
+      } catch (e) { /* ignore */ }
+
+      // Toggle UI sections based on outputMode
+      function updateModeUI() {
+        var mode = $('#node-input-outputMode').val();
+        var isAddressList = (mode === 'single' || mode === 'object');
+        $('#s7r-address-list-section').toggle(isAddressList);
+        $('#s7r-single-address-section').toggle(!isAddressList);
+        $('#s7r-schema-section').toggle(mode === 'struct');
+        $('#s7r-buffer-hint').toggle(mode === 'buffer');
+        $('#s7r-bits-hint').toggle(mode === 'bits');
+        $('#s7r-struct-hint').toggle(mode === 'struct');
+      }
+
+      $('#node-input-outputMode').on('change', updateModeUI);
+
+      // For buffer/struct/bits modes, show a single address input
+      // Pre-fill single address from first address in list
+      if (!isAddressListMode(node.outputMode)) {
+        var firstAddr = (node.address || '').split(/\s+/)[0] || '';
+        $('#s7r-single-address-input').val(firstAddr);
+      }
+
+      function isAddressListMode(mode) {
+        return mode === 'single' || mode === 'object' || !mode;
+      }
+
+      updateModeUI();
     },
     oneditsave: function () {
-      // Collect addresses from editableList back to space-separated string
-      var items = $('#s7r-address-list').editableList('items');
-      var addresses = [];
-      items.each(function () {
-        var val = $(this).find('input').val();
-        if (val && val.trim()) addresses.push(val.trim());
-      });
-      this.address = addresses.join(' ');
+      var mode = $('#node-input-outputMode').val();
+
+      if (mode === 'single' || mode === 'object') {
+        // Collect addresses from editableList
+        var items = $('#s7r-address-list').editableList('items');
+        var addresses = [];
+        items.each(function () {
+          var val = $(this).find('input').val();
+          if (val && val.trim()) addresses.push(val.trim());
+        });
+        this.address = addresses.join(' ');
+      } else {
+        // Single address for buffer/struct/bits
+        this.address = ($('#s7r-single-address-input').val() || '').trim();
+      }
+
+      // Save schema
+      if (mode === 'struct') {
+        var schemaItems = $('#s7r-schema-list').editableList('items');
+        var schema = [];
+        schemaItems.each(function () {
+          var inputs = $(this).find('input');
+          var select = $(this).find('select');
+          var name = $(inputs[0]).val();
+          var type = select.val();
+          var offset = parseInt($(inputs[1]).val(), 10);
+          var bit = $(inputs[2]).val();
+          var len = $(inputs[3]).val();
+          if (name && !isNaN(offset)) {
+            var field = { name: name, type: type, offset: offset };
+            if (type === 'BOOL' && bit !== '') field.bit = parseInt(bit, 10);
+            if (type === 'STRING' && len !== '') field.length = parseInt(len, 10);
+            schema.push(field);
+          }
+        });
+        this.schema = JSON.stringify(schema);
+      }
     }
   });
 </script>
@@ -81,35 +178,66 @@
     </div>
   </div>
   <div class="form-row">
-    <label style="vertical-align:top;"><i class="fa fa-map-marker"></i> Addresses</label>
-    <div style="display:inline-block;width:70%;">
-      <div style="margin-bottom:4px;">
-        <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
-      </div>
-      <ol id="s7r-address-list"></ol>
-    </div>
-  </div>
-  <div class="form-row">
     <label for="node-input-outputMode"><i class="fa fa-list"></i> Output</label>
     <select id="node-input-outputMode">
       <option value="single">Single value</option>
       <option value="object">Object (key=address)</option>
+      <option value="buffer">Raw Buffer</option>
+      <option value="struct">Struct (schema)</option>
+      <option value="bits">Bit Array</option>
     </select>
   </div>
-  <!-- Hidden field to store address for node-red -->
+  <div id="s7r-address-list-section">
+    <div class="form-row">
+      <label style="vertical-align:top;"><i class="fa fa-map-marker"></i> Addresses</label>
+      <div style="display:inline-block;width:70%;">
+        <div style="margin-bottom:4px;">
+          <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
+        </div>
+        <ol id="s7r-address-list"></ol>
+      </div>
+    </div>
+  </div>
+  <div id="s7r-single-address-section" style="display:none;">
+    <div class="form-row">
+      <label for="s7r-single-address-input"><i class="fa fa-map-marker"></i> Address</label>
+      <input type="text" id="s7r-single-address-input" placeholder="DB1,BYTE0.0.100" style="width:70%;">
+    </div>
+  </div>
+  <div id="s7r-buffer-hint" style="display:none;" class="form-tips">
+    <p>Reads raw bytes from the PLC. Use <code>DB1,BYTE0.0.100</code> to read 100 bytes from DB1 offset 0.</p>
+    <p><code>msg.payload</code> will be a Node.js <code>Buffer</code>.</p>
+  </div>
+  <div id="s7r-bits-hint" style="display:none;" class="form-tips">
+    <p>Reads bytes and unpacks them into a boolean array (LSB first).</p>
+    <p>Use <code>DB1,BYTE0.0.2</code> to read 2 bytes = 16 bits. <code>msg.payload</code> will be <code>[true, false, ...]</code>.</p>
+  </div>
+  <div id="s7r-struct-hint" style="display:none;" class="form-tips">
+    <p>Reads a data block area and extracts fields according to the schema below.</p>
+    <p>The address field specifies the DB (e.g. <code>DB1,BYTE0</code>). Schema can be overridden at runtime via <code>msg.schema</code>.</p>
+  </div>
+  <div id="s7r-schema-section" style="display:none;">
+    <div class="form-row">
+      <label style="vertical-align:top;"><i class="fa fa-th-list"></i> Schema</label>
+      <div style="display:inline-block;width:70%;">
+        <ol id="s7r-schema-list"></ol>
+      </div>
+    </div>
+  </div>
+  <!-- Hidden fields -->
   <input type="hidden" id="node-input-address">
+  <input type="hidden" id="node-input-schema">
   <div id="s7r-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <b><i class="fa fa-sitemap"></i> PLC Address Browser</b>
-      <button type="button" id="s7r-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      <div>
+        <button type="button" id="s7r-browse-refresh" class="red-ui-button red-ui-button-small" style="margin-right:4px;"><i class="fa fa-refresh"></i></button>
+        <button type="button" id="s7r-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      </div>
     </div>
     <input type="text" id="s7r-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
     <div id="s7r-browse-status" style="padding:8px;color:#666;display:none;"></div>
     <div id="s7r-browse-results" style="max-height:300px;overflow-y:auto;"></div>
-  </div>
-  <div class="form-tips">
-    <p>Address can be set via <code>msg.topic</code>. Use the Browse button to discover PLC addresses.</p>
-    <p>Supports nodes7 style (<code>DB1,REAL0</code>) and IEC style (<code>DB1.DBD0</code>).</p>
   </div>
 </script>
 
@@ -119,10 +247,29 @@
   <dl class="message-properties">
     <dt class="optional">topic <span class="property-type">string</span></dt>
     <dd>Overrides the configured address</dd>
+    <dt class="optional">schema <span class="property-type">array</span></dt>
+    <dd>Overrides the configured schema (struct mode only)</dd>
   </dl>
   <h3>Outputs</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">any</span></dt>
-    <dd>The value read from the PLC</dd>
+    <dd>The value read from the PLC (type depends on output mode)</dd>
+  </dl>
+  <h3>Output Modes</h3>
+  <dl>
+    <dt>Single value</dt>
+    <dd>Reads one address and returns the scalar value.</dd>
+    <dt>Object</dt>
+    <dd>Reads one or more addresses and returns an object with address keys.</dd>
+    <dt>Raw Buffer</dt>
+    <dd>Reads N bytes and returns a Node.js Buffer. Address format: <code>DB1,BYTE0.0.100</code> (100 bytes from offset 0). Useful for JSON strings in DBs or custom binary parsing.</dd>
+    <dt>Struct (schema)</dt>
+    <dd>Reads a raw buffer area and extracts typed fields according to a schema. Each field specifies name, data type, and byte offset. Example schema:
+    <pre>[{"name":"temp","type":"REAL","offset":0},
+ {"name":"count","type":"INT","offset":4},
+ {"name":"active","type":"BOOL","offset":6,"bit":0}]</pre>
+    Returns: <code>{"temp":23.5,"count":42,"active":true}</code></dd>
+    <dt>Bit Array</dt>
+    <dd>Reads N bytes and returns an array of booleans (LSB first per byte). Address format: <code>DB1,BYTE0.0.2</code> (2 bytes = 16 bits). Useful for status words and bitmasks.</dd>
   </dl>
 </script>

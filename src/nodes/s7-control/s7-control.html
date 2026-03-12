@@ -1,0 +1,72 @@
+<script type="text/javascript">
+  RED.nodes.registerType('s7-control', {
+    category: 'S7',
+    color: '#4FC3F7',
+    defaults: {
+      name: { value: '' },
+      server: { value: '', type: 's7-config', required: true },
+      action: { value: 'stop' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 's7-suite.svg',
+    paletteLabel: 'S7 Control',
+    label: function () {
+      return this.name || this.action || 'S7 Control';
+    },
+    oneditprepare: function () {
+      s7SuiteStatusDot('#node-input-server', '#s7c-status-dot');
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="s7-control">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
+    <div style="display:inline-flex;width:70%;align-items:center;">
+      <input type="text" id="node-input-server" style="flex:1;">
+      <span id="s7c-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="node-input-action"><i class="fa fa-power-off"></i> Action</label>
+    <select id="node-input-action">
+      <option value="start">Start (Hot Start)</option>
+      <option value="stop">Stop</option>
+      <option value="coldstart">Cold Start</option>
+    </select>
+  </div>
+  <div class="form-tips">
+    <p>Controls the PLC CPU: Start, Stop, or Cold Start.</p>
+    <p><code>msg.payload</code> can override the configured action at runtime. Valid values: <code>start</code>, <code>stop</code>, <code>coldstart</code>, <code>reset</code> (alias for coldstart).</p>
+    <p><b>Note:</b> CPU control requires the <b>snap7</b> backend. The nodes7 backend does not support these operations.</p>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="s7-control">
+  <p>Controls the CPU of a Siemens S7 PLC (Start / Stop / Cold Start).</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt class="optional">payload <span class="property-type">string</span></dt>
+    <dd>Overrides the configured action. Valid values: <code>start</code>, <code>stop</code>, <code>coldstart</code>, <code>reset</code></dd>
+  </dl>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>Result object with <code>action</code> and <code>success</code> properties</dd>
+  </dl>
+  <h3>Details</h3>
+  <p>This node sends CPU control commands to the PLC. The action can be configured in the node properties or overridden at runtime via <code>msg.payload</code>.</p>
+  <h4>Actions</h4>
+  <ul>
+    <li><b>start</b> &mdash; Performs a hot start (PlcHotStart)</li>
+    <li><b>stop</b> &mdash; Stops the PLC CPU (PlcStop)</li>
+    <li><b>coldstart</b> / <b>reset</b> &mdash; Performs a cold start (PlcColdStart)</li>
+  </ul>
+  <h4>Backend Requirement</h4>
+  <p><b>snap7 backend only.</b> The nodes7 backend does not support CPU control operations. If the current backend does not support the requested action, the node will report an error.</p>
+</script>

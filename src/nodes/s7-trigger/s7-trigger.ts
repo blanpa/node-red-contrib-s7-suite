@@ -22,6 +22,8 @@ export = function (RED: NodeAPI): void {
       return;
     }
 
+    serverNode.registerChildNode(this);
+
     if (!config.address) {
       this.status({ fill: 'red', shape: 'ring', text: 'no address' });
       return;
@@ -99,7 +101,10 @@ export = function (RED: NodeAPI): void {
     this.on('close', (done: () => void) => {
       poller.stop();
       poller.removeAllListeners();
-      serverNode.connectionManager.removeListener('stateChanged', updateStatus);
+      if (serverNode) {
+        serverNode.deregisterChildNode(this);
+        serverNode.connectionManager.removeListener('stateChanged', updateStatus);
+      }
       done();
     });
   }

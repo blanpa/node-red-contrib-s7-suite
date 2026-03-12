@@ -5,7 +5,9 @@
     defaults: {
       name: { value: '' },
       server: { value: '', type: 's7-config', required: true },
-      address: { value: '' }
+      address: { value: '' },
+      mode: { value: 'single' },
+      schema: { value: '[]' }
     },
     inputs: 1,
     outputs: 1,
@@ -15,6 +17,7 @@
       return this.name || this.address || 'S7 Write';
     },
     oneditprepare: function () {
+      var node = this;
       s7SuiteStatusDot('#node-input-server', '#s7w-status-dot');
       s7SuiteBrowseDialog({
         btnId: '#s7w-browse-btn',
@@ -25,8 +28,93 @@
         dialogId: '#s7w-browse-dialog',
         serverId: '#node-input-server',
         addressId: '#node-input-address',
-        mode: 'replace'
+        mode: 'replace',
+        refreshId: '#s7w-browse-refresh'
       });
+
+      // Schema editableList for struct mode
+      var S7_TYPES = ['BOOL','BYTE','WORD','DWORD','INT','DINT','REAL','LREAL','CHAR','STRING'];
+      var schemaList = $('#s7w-schema-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
+        addButton: 'Add field',
+        removable: true,
+        sortable: true,
+        addItem: function (row, index, data) {
+          var nameInput = $('<input type="text" placeholder="Field name" style="width:22%;">').val(data.name || '');
+          var typeSelect = $('<select style="width:22%;margin-left:2%;">');
+          S7_TYPES.forEach(function(t) {
+            typeSelect.append($('<option>').val(t).text(t));
+          });
+          typeSelect.val(data.type || 'REAL');
+          var offsetInput = $('<input type="number" placeholder="Offset" style="width:18%;margin-left:2%;" min="0">').val(data.offset != null ? data.offset : '');
+          var bitInput = $('<input type="number" placeholder="Bit" style="width:14%;margin-left:2%;" min="0" max="7">').val(data.bit != null ? data.bit : '');
+          var lenInput = $('<input type="number" placeholder="Str len" style="width:14%;margin-left:2%;" min="1">').val(data.length != null ? data.length : '');
+
+          function updateVisibility() {
+            var t = typeSelect.val();
+            bitInput.toggle(t === 'BOOL');
+            lenInput.toggle(t === 'STRING');
+          }
+          typeSelect.on('change', updateVisibility);
+
+          row.append(nameInput, typeSelect, offsetInput, bitInput, lenInput);
+          updateVisibility();
+        }
+      });
+
+      // Load existing schema
+      try {
+        var schemaArr = JSON.parse(node.schema || '[]');
+        if (Array.isArray(schemaArr)) {
+          schemaArr.forEach(function (f) {
+            schemaList.editableList('addItem', f);
+          });
+        }
+      } catch (e) { /* ignore */ }
+
+      // Pre-fill struct address from node address
+      if (node.mode === 'struct') {
+        $('#s7w-struct-address').val(node.address || '');
+      }
+
+      // Toggle UI sections based on mode
+      function updateModeUI() {
+        var mode = $('#node-input-mode').val();
+        $('#s7w-single-section').toggle(mode === 'single');
+        $('#s7w-multi-hint').toggle(mode === 'multi');
+        $('#s7w-struct-section').toggle(mode === 'struct');
+        $('#s7w-schema-section').toggle(mode === 'struct');
+        $('#s7w-single-hint').toggle(mode === 'single');
+      }
+
+      $('#node-input-mode').on('change', updateModeUI);
+      updateModeUI();
+    },
+    oneditsave: function () {
+      var mode = $('#node-input-mode').val();
+
+      // For struct mode, sync address from struct address input and save schema
+      if (mode === 'struct') {
+        this.address = ($('#s7w-struct-address').val() || '').trim();
+
+        var schemaItems = $('#s7w-schema-list').editableList('items');
+        var schema = [];
+        schemaItems.each(function () {
+          var inputs = $(this).find('input');
+          var select = $(this).find('select');
+          var name = $(inputs[0]).val();
+          var type = select.val();
+          var offset = parseInt($(inputs[1]).val(), 10);
+          var bit = $(inputs[2]).val();
+          var len = $(inputs[3]).val();
+          if (name && !isNaN(offset)) {
+            var field = { name: name, type: type, offset: offset };
+            if (type === 'BOOL' && bit !== '') field.bit = parseInt(bit, 10);
+            if (type === 'STRING' && len !== '') field.length = parseInt(len, 10);
+            schema.push(field);
+          }
+        });
+        this.schema = JSON.stringify(schema);
+      }
     }
   });
 </script>
@@ -44,23 +132,61 @@
     </div>
   </div>
   <div class="form-row">
-    <label for="node-input-address"><i class="fa fa-map-marker"></i> Address</label>
-    <div style="display:inline-flex;width:70%;">
-      <input type="text" id="node-input-address" placeholder="DB1,REAL0 or DB1.DBD0" style="flex:1;">
-      <button type="button" id="s7w-browse-btn" class="red-ui-button" style="margin-left:4px;" title="Browse PLC addresses"><i class="fa fa-search"></i></button>
+    <label for="node-input-mode"><i class="fa fa-list"></i> Mode</label>
+    <select id="node-input-mode">
+      <option value="single">Single value</option>
+      <option value="multi">Multi-write</option>
+      <option value="struct">Struct write</option>
+    </select>
+  </div>
+  <div id="s7w-single-section">
+    <div class="form-row">
+      <label for="node-input-address"><i class="fa fa-map-marker"></i> Address</label>
+      <div style="display:inline-flex;width:70%;">
+        <input type="text" id="node-input-address" placeholder="DB1,REAL0 or DB1.DBD0" style="flex:1;">
+        <button type="button" id="s7w-browse-btn" class="red-ui-button" style="margin-left:4px;" title="Browse PLC addresses"><i class="fa fa-search"></i></button>
+      </div>
     </div>
   </div>
+  <div id="s7w-struct-section" style="display:none;">
+    <div class="form-row">
+      <label for="s7w-struct-address"><i class="fa fa-map-marker"></i> Base Address</label>
+      <input type="text" id="s7w-struct-address" placeholder="DB1,BYTE0" style="width:70%;">
+    </div>
+  </div>
+  <div id="s7w-single-hint" class="form-tips">
+    <p>Writes <code>msg.payload</code> to the specified address. Address can be overridden via <code>msg.topic</code>.</p>
+  </div>
+  <div id="s7w-multi-hint" style="display:none;" class="form-tips">
+    <p>Writes multiple values at once. <code>msg.payload</code> must be an object where each key is an S7 address and each value is the data to write.</p>
+    <p>Example: <code>{"MB0": 255, "MW2": 1234, "DB1,REAL0": 23.5}</code></p>
+  </div>
+  <div id="s7w-schema-section" style="display:none;">
+    <div class="form-row">
+      <label style="vertical-align:top;"><i class="fa fa-th-list"></i> Schema</label>
+      <div style="display:inline-block;width:70%;">
+        <ol id="s7w-schema-list"></ol>
+      </div>
+    </div>
+    <div class="form-tips">
+      <p>Writes structured data to a DB area. <code>msg.payload</code> is an object with field names matching the schema.</p>
+      <p>Example: <code>{"temperature": 23.5, "setpoint": 42, "motorOn": true}</code></p>
+      <p>Uses read-modify-write to preserve bits not being written. Schema can be overridden at runtime via <code>msg.schema</code>.</p>
+    </div>
+  </div>
+  <!-- Hidden fields -->
+  <input type="hidden" id="node-input-schema">
   <div id="s7w-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
       <b><i class="fa fa-sitemap"></i> PLC Address Browser</b>
-      <button type="button" id="s7w-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      <div>
+        <button type="button" id="s7w-browse-refresh" class="red-ui-button red-ui-button-small" style="margin-right:4px;"><i class="fa fa-refresh"></i></button>
+        <button type="button" id="s7w-browse-close" class="red-ui-button red-ui-button-small"><i class="fa fa-times"></i></button>
+      </div>
     </div>
     <input type="text" id="s7w-browse-filter" placeholder="Filter (e.g. DB1, REAL, Merker...)" style="width:100%;margin-bottom:6px;padding:4px;">
     <div id="s7w-browse-status" style="padding:8px;color:#666;display:none;"></div>
     <div id="s7w-browse-results" style="max-height:300px;overflow-y:auto;"></div>
-  </div>
-  <div class="form-tips">
-    <p>Writes <code>msg.payload</code> to the specified address. Address can be overridden via <code>msg.topic</code>.</p>
   </div>
 </script>
 
@@ -69,8 +195,47 @@
   <h3>Inputs</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">any</span></dt>
-    <dd>The value to write to the PLC</dd>
+    <dd>The value to write. Format depends on selected mode (see below).</dd>
     <dt class="optional">topic <span class="property-type">string</span></dt>
-    <dd>Overrides the configured address</dd>
+    <dd>Overrides the configured address at runtime (single and struct modes)</dd>
+    <dt class="optional">schema <span class="property-type">array</span></dt>
+    <dd>Overrides the configured schema at runtime (struct mode only)</dd>
   </dl>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>Pass-through of the input message on successful write</dd>
+  </dl>
+  <h3>Write Modes</h3>
+  <dl>
+    <dt>Single value</dt>
+    <dd>Writes <code>msg.payload</code> to the configured PLC address.
+    If <code>msg.topic</code> is set, it overrides the configured address.</dd>
+    <dt>Multi-write</dt>
+    <dd>Writes multiple values at once. <code>msg.payload</code> must be an object where each key is an S7 address and each value is the data to write.
+    <pre>{"MB0": 255, "MW2": 1234, "DB1,REAL0": 23.5}</pre></dd>
+    <dt>Struct write</dt>
+    <dd>Writes structured data to a DB area using a schema. <code>msg.payload</code> is an object with field names matching the schema.
+    Uses read-modify-write to preserve bits not being written.
+    <pre>{"temperature": 23.5, "setpoint": 42, "motorOn": true}</pre>
+    Schema example:
+    <pre>[{"name":"temperature","type":"REAL","offset":0},
+ {"name":"setpoint","type":"INT","offset":4},
+ {"name":"motorOn","type":"BOOL","offset":6,"bit":0}]</pre>
+    Only fields present in <code>msg.payload</code> are written; others are left unchanged.</dd>
+  </dl>
+  <h4>Address Formats</h4>
+  <ul>
+    <li><b>nodes7:</b> <code>DB1,REAL0</code>, <code>DB1,BOOL0.0</code>, <code>DB1,INT4</code></li>
+    <li><b>IEC:</b> <code>DB1.DBD0</code>, <code>DB1.DBX0.0</code>, <code>DB1.DBW4</code></li>
+    <li><b>Area:</b> <code>MW0</code>, <code>Q0.0</code>, <code>IB2</code></li>
+  </ul>
+  <h4>Data Type Mapping</h4>
+  <ul>
+    <li><b>BOOL:</b> <code>true</code>/<code>false</code></li>
+    <li><b>BYTE/WORD/DWORD:</b> unsigned integer</li>
+    <li><b>INT/DINT:</b> signed integer</li>
+    <li><b>REAL/LREAL:</b> floating point number</li>
+    <li><b>STRING:</b> text string</li>
+  </ul>
 </script>
