@@ -278,5 +278,259 @@ describe('s7-config node', () => {
       await handler({ params: { id: 'config1' } }, res);
       expect(res.status).toHaveBeenCalledWith(503);
     });
+
+    describe('browse endpoint when connected', () => {
+      let handler: Function;
+      let mockBackend: MockBackend;
+      let connMgr: ConnectionManager;
+
+      beforeEach(async () => {
+        handler = httpGetHandlers['/s7-suite/browse/:id'];
+        mockBackend = new MockBackend();
+        connMgr = new ConnectionManager(mockBackend, {
+          host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+          plcType: 'S7-1200' as const, backend: 'nodes7' as const,
+          requestTimeout: 3000,
+        });
+        await connMgr.connect();
+      });
+
+      afterEach(async () => {
+        await connMgr.disconnect();
+      });
+
+      it('browses with snap7 backend using listBlocksOfType and getBlockInfo', async () => {
+        mockBackend.blockNumbers['DB'] = [1];
+        mockBackend.blockInfos.set('DB:1', {
+          blockType: 'DB',
+          blockNumber: 1,
+          sizeData: 4,
+        });
+        // Raw area data for DB1 (area 0x84, dbNumber 1)
+        const dbBuf = Buffer.alloc(4);
+        dbBuf.writeFloatBE(3.14, 0);
+        mockBackend.rawAreaData.set('132:1:0:4', dbBuf);
+        // Merker area fails (no access)
+        // Inputs area fails (no access)
+        // Outputs area fails (no access)
+
+        mockRED.nodes.getNode.mockReturnValue({
+          connectionManager: connMgr,
+          s7Config: { backend: 'snap7' },
+        });
+
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await handler({ params: { id: 'config1' } }, res);
+
+        expect(res.json).toHaveBeenCalled();
+        const result = res.json.mock.calls[0][0];
+        expect(result.addresses).toBeDefined();
+        expect(result.addresses.length).toBeGreaterThan(0);
+        // DB1 with 4 bytes should have REAL, DINT, INT, WORD, BYTE, BOOL addresses
+        const db1Addresses = result.addresses.filter((a: any) => a.address.startsWith('DB1,'));
+        expect(db1Addresses.length).toBeGreaterThan(0);
+        expect(db1Addresses.some((a: any) => a.type === 'REAL')).toBe(true);
+        expect(db1Addresses.some((a: any) => a.type === 'BYTE')).toBe(true);
+      });
+
+      it('browses with nodes7 backend using probe-based approach', async () => {
+        // DB1 exists: area 0x84 (132), dbNumber 1
+        const dbBuf = Buffer.alloc(4);
+        dbBuf.writeInt16BE(42, 0);
+        mockBackend.rawAreaData.set('132:1:0:4', dbBuf);
+
+        // Merker area: area 0x83 (131), dbNumber 0
+        const merkerBuf = Buffer.alloc(32);
+        merkerBuf.writeUInt8(0xFF, 0);
+        mockBackend.rawAreaData.set('131:0:0:32', merkerBuf);
+
+        // Input area: area 0x81 (129), dbNumber 0
+        const inputBuf = Buffer.alloc(8);
+        inputBuf.writeUInt8(0xAA, 0);
+        mockBackend.rawAreaData.set('129:0:0:8', inputBuf);
+
+        // Output area: area 0x82 (130), dbNumber 0
+        const outputBuf = Buffer.alloc(8);
+        outputBuf.writeUInt8(0x55, 0);
+        mockBackend.rawAreaData.set('130:0:0:8', outputBuf);
+
+        mockRED.nodes.getNode.mockReturnValue({
+          connectionManager: connMgr,
+          s7Config: { backend: 'nodes7' },
+        });
+
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await handler({ params: { id: 'config1' } }, res);
+
+        expect(res.json).toHaveBeenCalled();
+        const result = res.json.mock.calls[0][0];
+        expect(result.addresses).toBeDefined();
+        expect(result.addresses.length).toBeGreaterThan(0);
+
+        // Should have DB addresses
+        const dbAddresses = result.addresses.filter((a: any) => a.address.startsWith('DB1,'));
+        expect(dbAddresses.length).toBeGreaterThan(0);
+
+        // Should have Merker addresses
+        const merkerAddresses = result.addresses.filter((a: any) => a.info === 'Merker');
+        expect(merkerAddresses.length).toBeGreaterThan(0);
+        expect(merkerAddresses.some((a: any) => a.address.startsWith('MB'))).toBe(true);
+        expect(merkerAddresses.some((a: any) => a.address.startsWith('MW'))).toBe(true);
+        expect(merkerAddresses.some((a: any) => a.address.startsWith('M') && a.type === 'BOOL')).toBe(true);
+
+        // Should have Input addresses
+        const inputAddresses = result.addresses.filter((a: any) => a.info === 'Input');
+        expect(inputAddresses.length).toBeGreaterThan(0);
+        expect(inputAddresses.some((a: any) => a.address.startsWith('IB'))).toBe(true);
+
+        // Should have Output addresses
+        const outputAddresses = result.addresses.filter((a: any) => a.info === 'Output');
+        expect(outputAddresses.length).toBeGreaterThan(0);
+        expect(outputAddresses.some((a: any) => a.address.startsWith('QB'))).toBe(true);
+      });
+
+      it('browses with nodes7 and reads current values from PLC', async () => {
+        // DB1 with 4 bytes containing a REAL value
+        const dbBuf = Buffer.alloc(4);
+        dbBuf.writeFloatBE(1.5, 0);
+        mockBackend.rawAreaData.set('132:1:0:4', dbBuf);
+
+        mockRED.nodes.getNode.mockReturnValue({
+          connectionManager: connMgr,
+          s7Config: { backend: 'nodes7' },
+        });
+
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await handler({ params: { id: 'config1' } }, res);
+
+        const result = res.json.mock.calls[0][0];
+        // Find the REAL address and check its value was read
+        const realAddr = result.addresses.find((a: any) => a.address === 'DB1,REAL0');
+        expect(realAddr).toBeDefined();
+        expect(realAddr.value).toBeCloseTo(1.5, 1);
+      });
+
+      it('browse returns 500 when an unexpected error occurs', async () => {
+        // Make getBackend throw an error to hit the catch block on line 240
+        const failConnMgr = new ConnectionManager(mockBackend, {
+          host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+          plcType: 'S7-1200' as const, backend: 'nodes7' as const,
+        });
+        await failConnMgr.connect();
+
+        // Override getBackend to throw
+        jest.spyOn(failConnMgr, 'getBackend').mockImplementation(() => {
+          throw new Error('Unexpected backend error');
+        });
+
+        mockRED.nodes.getNode.mockReturnValue({
+          connectionManager: failConnMgr,
+          s7Config: { backend: 'nodes7' },
+        });
+
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await handler({ params: { id: 'config1' } }, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ error: 'Unexpected backend error' });
+
+        await failConnMgr.disconnect();
+      });
+
+      it('browse returns 500 with stringified error for non-Error throws', async () => {
+        const failConnMgr = new ConnectionManager(mockBackend, {
+          host: '192.168.1.100', port: 102, rack: 0, slot: 1,
+          plcType: 'S7-1200' as const, backend: 'nodes7' as const,
+        });
+        await failConnMgr.connect();
+
+        jest.spyOn(failConnMgr, 'getBackend').mockImplementation(() => {
+          throw 'string error';  // eslint-disable-line no-throw-literal
+        });
+
+        mockRED.nodes.getNode.mockReturnValue({
+          connectionManager: failConnMgr,
+          s7Config: { backend: 'nodes7' },
+        });
+
+        const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+        await handler({ params: { id: 'config1' } }, res);
+
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.json).toHaveBeenCalledWith({ error: 'string error' });
+
+        await failConnMgr.disconnect();
+      });
+    });
+  });
+
+  describe('registerChildNode / deregisterChildNode', () => {
+    it('registers and deregisters child nodes', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodeContext: any = Object.assign(new EventEmitter(), {
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        status: jest.fn(),
+      });
+
+      constructorFn.call(nodeContext, {
+        id: 'config-child-test',
+        type: 's7-config',
+        name: 'test',
+        host: '192.168.1.100',
+        port: 102,
+        rack: 0,
+        slot: 1,
+        plcType: 'S7-1200',
+        backend: 'nodes7',
+      });
+
+      expect(nodeContext.registerChildNode).toBeDefined();
+      expect(nodeContext.deregisterChildNode).toBeDefined();
+
+      // Should not throw when registering/deregistering
+      const childNode = { id: 'child1' } as any;
+      nodeContext.registerChildNode(childNode);
+      nodeContext.deregisterChildNode(childNode);
+      // Deregistering again should not throw
+      nodeContext.deregisterChildNode(childNode);
+    });
+  });
+
+  describe('connect failure', () => {
+    it('logs error when connect fails', async () => {
+      // Make the mock backend fail on connect
+      (createBackend as jest.Mock).mockReturnValueOnce((() => {
+        const mb = new MockBackend();
+        mb.shouldFailConnect = true;
+        return mb;
+      })());
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodeContext: any = Object.assign(new EventEmitter(), {
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        status: jest.fn(),
+      });
+
+      constructorFn.call(nodeContext, {
+        id: 'config-fail',
+        type: 's7-config',
+        name: 'test',
+        host: '192.168.1.100',
+        port: 102,
+        rack: 0,
+        slot: 1,
+        plcType: 'S7-1200',
+        backend: 'nodes7',
+      });
+
+      // Wait for the async connect rejection to be handled
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(nodeContext.error).toHaveBeenCalledWith('Failed to connect: Connection failed');
+    });
   });
 });

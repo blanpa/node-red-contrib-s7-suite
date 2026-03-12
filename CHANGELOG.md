@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.0] - 2026-03-12
+## [0.0.2] - 2026-03-12
 
 ### Added
 - **Multi-Write**: s7-write accepts object payload `{MB0: 255, MW2: 1234}` for batch writes
@@ -26,7 +26,7 @@ All notable changes to this project will be documented in this file.
 - Verified with real S7-300 CPU 314 via ACCON-NetLink-PRO compact adapter
 - 314 unit tests passing
 
-## [0.1.0] - 2026-03-08
+## [0.0.1] - 2026-03-08
 
 ### Added
 - Initial release with 5 Node-RED nodes: s7-config, s7-read, s7-write, s7-trigger, s7-browse
