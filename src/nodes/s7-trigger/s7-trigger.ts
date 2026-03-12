@@ -95,6 +95,22 @@ export = function (RED: NodeAPI): void {
       }
     };
 
+    this.on('input', (msg: NodeMessage, _send, done) => {
+      const m = msg as Record<string, unknown>;
+      const update: Record<string, unknown> = {};
+      if (typeof m.interval === 'number' && m.interval > 0) update.interval = m.interval;
+      if (typeof m.edgeMode === 'string' && ['any', 'rising', 'falling'].includes(m.edgeMode)) update.edgeMode = m.edgeMode;
+      if (typeof m.deadband === 'number' && m.deadband >= 0) update.deadband = m.deadband;
+
+      if (Object.keys(update).length > 0) {
+        poller.updateConfig(update as Partial<import('../../core/poller').PollerConfig>);
+        if (update.interval) {
+          this.status({ fill: 'green', shape: 'dot', text: `polling ${update.interval}ms` });
+        }
+      }
+      done();
+    });
+
     serverNode.connectionManager.on('stateChanged', updateStatus);
     updateStatus({ newState: serverNode.connectionManager.getState() });
 

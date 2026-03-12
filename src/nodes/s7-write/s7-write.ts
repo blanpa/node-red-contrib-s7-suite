@@ -33,7 +33,7 @@ export = function (RED: NodeAPI): void {
       const send = _send || ((m: NodeMessage) => this.send(m));
 
       try {
-        const mode = config.mode || 'single';
+        const mode = ((msg as Record<string, unknown>).mode as string) || config.mode || 'single';
 
         if (mode === 'multi') {
           // Multi-write: msg.payload is an object { address: value, ... }

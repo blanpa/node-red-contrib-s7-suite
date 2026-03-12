@@ -325,6 +325,95 @@ describe('s7-trigger node', () => {
       );
     });
 
+    describe('input handler for runtime config', () => {
+      it('updates interval via msg.interval', () => {
+        const node = createNodeContext();
+        constructorFn.call(node, {
+          id: 'trigger1',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'DB1,REAL0',
+          interval: 1000,
+          edgeMode: 'any',
+          deadband: 0,
+        });
+
+        const done = jest.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inputHandler = (node as any).listeners('input')[0];
+        inputHandler({ interval: 2000 }, jest.fn(), done);
+
+        expect(done).toHaveBeenCalledWith();
+        expect(node.status).toHaveBeenCalledWith({
+          fill: 'green', shape: 'dot', text: 'polling 2000ms',
+        });
+      });
+
+      it('updates edgeMode via msg.edgeMode', () => {
+        const node = createNodeContext();
+        constructorFn.call(node, {
+          id: 'trigger1',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'DB1,REAL0',
+          interval: 1000,
+          edgeMode: 'any',
+          deadband: 0,
+        });
+
+        const done = jest.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inputHandler = (node as any).listeners('input')[0];
+        inputHandler({ edgeMode: 'rising' }, jest.fn(), done);
+
+        expect(done).toHaveBeenCalledWith();
+      });
+
+      it('updates deadband via msg.deadband', () => {
+        const node = createNodeContext();
+        constructorFn.call(node, {
+          id: 'trigger1',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'DB1,REAL0',
+          interval: 1000,
+          edgeMode: 'any',
+          deadband: 0,
+        });
+
+        const done = jest.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inputHandler = (node as any).listeners('input')[0];
+        inputHandler({ deadband: 5 }, jest.fn(), done);
+
+        expect(done).toHaveBeenCalledWith();
+      });
+
+      it('ignores invalid msg properties', () => {
+        const node = createNodeContext();
+        constructorFn.call(node, {
+          id: 'trigger1',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'DB1,REAL0',
+          interval: 1000,
+          edgeMode: 'any',
+          deadband: 0,
+        });
+
+        node.status.mockClear();
+
+        const done = jest.fn();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inputHandler = (node as any).listeners('input')[0];
+        inputHandler({ interval: -1, edgeMode: 'invalid', deadband: -5 }, jest.fn(), done);
+
+        expect(done).toHaveBeenCalledWith();
+        // Status should not have been updated since all values are invalid
+        expect(node.status).not.toHaveBeenCalled();
+      });
+    });
+
     it('reports errors from poller to node.error', async () => {
       jest.useRealTimers();
 

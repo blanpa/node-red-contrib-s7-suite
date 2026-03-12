@@ -16,7 +16,7 @@ export interface PollerItem {
 export class Poller extends EventEmitter {
   private timer: ReturnType<typeof setInterval> | null = null;
   private items: Map<string, PollerItem> = new Map();
-  private readonly config: PollerConfig;
+  private config: PollerConfig;
   private readFn: (() => Promise<Map<string, unknown>>) | null = null;
 
   constructor(config: PollerConfig) {
@@ -51,6 +51,15 @@ export class Poller extends EventEmitter {
 
   isRunning(): boolean {
     return this.timer !== null;
+  }
+
+  updateConfig(update: Partial<PollerConfig>): void {
+    const restartNeeded = update.interval !== undefined && update.interval !== this.config.interval && this.isRunning();
+    this.config = { ...this.config, ...update };
+    if (restartNeeded) {
+      clearInterval(this.timer!);
+      this.timer = setInterval(() => this.poll(), this.config.interval);
+    }
   }
 
   private async poll(): Promise<void> {

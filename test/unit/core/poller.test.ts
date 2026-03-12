@@ -171,4 +171,90 @@ describe('Poller', () => {
     poller.removeItem('a');
     // No direct way to check items, but should not throw
   });
+
+  describe('updateConfig', () => {
+    it('updates edgeMode without restarting timer', () => {
+      poller = new Poller({ interval: 100, edgeMode: 'any', deadband: 0 });
+      poller.addItem('test');
+      poller.setReadFunction(async () => new Map([['test', true]]));
+      poller.start();
+
+      expect(poller.isRunning()).toBe(true);
+      poller.updateConfig({ edgeMode: 'rising' });
+      expect(poller.isRunning()).toBe(true);
+    });
+
+    it('updates deadband without restarting timer', () => {
+      poller = new Poller({ interval: 100, edgeMode: 'any', deadband: 0 });
+      poller.start();
+
+      poller.updateConfig({ deadband: 5 });
+      expect(poller.isRunning()).toBe(true);
+    });
+
+    it('restarts timer when interval changes while running', (done) => {
+      let readCount = 0;
+      poller = new Poller({ interval: 2000, edgeMode: 'any', deadband: 0 });
+      poller.addItem('test');
+      poller.setReadFunction(async () => {
+        readCount++;
+        return new Map([['test', readCount]]);
+      });
+      poller.start();
+
+      // Change to a much shorter interval
+      poller.updateConfig({ interval: 50 });
+
+      // With 50ms interval, should get reads within 200ms
+      setTimeout(() => {
+        expect(readCount).toBeGreaterThan(0);
+        done();
+      }, 200);
+    });
+
+    it('does not restart timer when interval is unchanged', () => {
+      poller = new Poller({ interval: 100, edgeMode: 'any', deadband: 0 });
+      poller.start();
+
+      poller.updateConfig({ interval: 100 });
+      expect(poller.isRunning()).toBe(true);
+    });
+
+    it('does not restart timer when not running', () => {
+      poller = new Poller({ interval: 100, edgeMode: 'any', deadband: 0 });
+
+      poller.updateConfig({ interval: 200 });
+      expect(poller.isRunning()).toBe(false);
+    });
+
+    it('applies updated deadband to change detection', (done) => {
+      let readCount = 0;
+      poller = new Poller({ interval: 50, edgeMode: 'any', deadband: 0 });
+      poller.addItem('test');
+      poller.setReadFunction(async () => {
+        readCount++;
+        // Values: 10, 11, 12, ...
+        return new Map([['test', 10 + readCount]]);
+      });
+
+      const changes: number[] = [];
+      poller.on('changed', ({ value }) => {
+        changes.push(value as number);
+      });
+
+      poller.start();
+
+      // After first read, update deadband to 100 so small changes are ignored
+      setTimeout(() => {
+        poller.updateConfig({ deadband: 100 });
+      }, 80);
+
+      setTimeout(() => {
+        // Should have initial value but not many more due to high deadband
+        expect(changes.length).toBeGreaterThan(0);
+        expect(changes.length).toBeLessThan(readCount);
+        done();
+      }, 350);
+    });
+  });
 });

@@ -34,7 +34,7 @@ export = function (RED: NodeAPI): void {
       const send = _send || ((m: NodeMessage) => this.send(m));
 
       try {
-        const outputMode = config.outputMode || 'single';
+        const outputMode = ((msg as Record<string, unknown>).outputMode as string) || config.outputMode || 'single';
 
         if (outputMode === 'buffer' || outputMode === 'bits') {
           const addressStr = (msg.topic as string) || config.address;
