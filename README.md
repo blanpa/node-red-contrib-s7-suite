@@ -2,37 +2,26 @@
 
 Node-RED nodes for Siemens S7 PLC communication with dual backend support.
 
-## Why s7-suite?
+## Overview
 
-Existing Node-RED packages for S7 communication each lock you into a single communication library and come with trade-offs:
+s7-suite is a TypeScript-based Node-RED package for communicating with Siemens S7 PLCs. It supports multiple communication backends and is designed for both production deployments and hardware-free development.
 
-| | s7-suite | node-red-contrib-s7 | node-red-contrib-s7comm | node-red-contrib-snap7 |
-|---|---|---|---|---|
-| Backend | nodes7 + snap7 + sim | nodes7 only | nodes7 only | snap7 only |
-| Native compilation required | No (optional) | No | No | Yes |
-| Built-in simulator | Yes | No | No | No |
-| PLC block browsing | Yes | No | No | No |
-| Edge detection & deadband | Yes | Diff mode | No | No |
-| Auto-reconnect with backoff | Yes | Basic | Basic | No |
-| Request queue & rate limiting | Yes | No | No | No |
-| Multiple address formats | nodes7, IEC, area | nodes7 only | Custom | snap7 only |
-| Array reads | Yes | Partial | No | Yes |
-| TypeScript | Yes | No | No | No |
-| License | MIT | GPL-3.0 | MIT | MIT |
+### Highlights
 
-### Key Advantages
+**Multiple backends** — Pick the backend that fits your environment per connection:
+- `nodes7` — pure JavaScript, no native compilation required
+- `node-snap7` — native Snap7 library, enables advanced features like block listing, SZL reads, and CPU control
+- `sim` — built-in simulator generating dynamic values (sine waves, counters, sawtooth signals) for development without a physical PLC
 
-**Flexible backend selection** — Choose between `nodes7` (pure JavaScript, zero native dependencies), `node-snap7` (native Snap7 library for advanced features like block listing and SZL reads), or `sim` (built-in simulator). Switch backends per connection without changing your flows.
+**Flexible address formats** — Write addresses in the style you prefer: nodes7-style (`DB1,REAL0`), IEC-style (`DB1.DBD0`), or area-style (`MW4`, `I0.1`, `QD8`). The address parser handles conversion transparently.
 
-**Development without hardware** — The simulation backend generates dynamic values (sine waves, counters, sawtooth signals) so you can build and test flows without a physical PLC.
+**Smart polling** — The trigger node supports edge detection (`rising`, `falling`, `any`) for booleans and configurable deadband for numeric values, reducing unnecessary messages in flows.
 
-**Smart polling** — The trigger node supports edge detection (`rising`, `falling`, `any`) for booleans and configurable deadband for numeric values, reducing unnecessary messages in your flows.
+**PLC browsing** — Discover data blocks directly from Node-RED. With snap7 this uses native block listing; with nodes7 a probe-based approach with rate limiting explores the PLC address space safely.
 
-**PLC browsing** — Discover available data blocks directly from Node-RED. With snap7 this uses native block listing; with nodes7 a probe-based approach with rate limiting automatically explores the PLC address space without overloading it.
+**Robust connections** — Connection manager with request queuing (max 100), automatic reconnection with exponential backoff, and structured error codes (`S7Error` with error code and cause chain).
 
-**Robust connections** — A connection manager with request queuing (max 100), automatic reconnection with exponential backoff, and structured error codes (`S7Error` with error code and cause chain) keeps your flows running reliably.
-
-**Multiple address formats** — Write addresses in whatever style you prefer: nodes7-style (`DB1,REAL0`), IEC-style (`DB1.DBD0`), or area-style (`MW4`, `I0.1`, `QD8`). The address parser handles conversion transparently.
+**Flexible read/write modes** — Single values, combined objects, raw buffers, structured schemas, or unpacked bit arrays.
 
 ## Features
 

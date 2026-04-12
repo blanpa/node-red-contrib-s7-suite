@@ -55,6 +55,11 @@ export = function (RED: NodeAPI): void {
       maxReconnectInterval: config.maxReconnectInterval || 30000,
     };
 
+    const validationError = validateConfig(this.s7Config);
+    if (validationError) {
+      this.error(`Invalid S7 config: ${validationError}`);
+    }
+
     const backend = createBackend(this.s7Config.backend);
     this.connectionManager = new ConnectionManager(backend, this.s7Config);
 
@@ -67,9 +72,11 @@ export = function (RED: NodeAPI): void {
       }
     });
 
-    this.connectionManager.connect().catch((err: Error) => {
-      this.error(`Failed to connect: ${err.message}`);
-    });
+    if (!validationError) {
+      this.connectionManager.connect().catch((err: Error) => {
+        this.error(`Failed to connect to ${this.s7Config.host}:${this.s7Config.port}: ${err.message}`);
+      });
+    }
 
     this.on('close', (done: () => void) => {
       this.connectionManager.disconnect().then(done).catch(done);
@@ -241,6 +248,35 @@ export = function (RED: NodeAPI): void {
     }
   });
 };
+
+function validateConfig(cfg: {
+  host: string;
+  port: number;
+  rack: number;
+  slot: number;
+  localTSAP?: number;
+  remoteTSAP?: number;
+}): string | null {
+  if (!cfg.host || typeof cfg.host !== 'string' || cfg.host.trim() === '') {
+    return 'host is required';
+  }
+  if (!Number.isInteger(cfg.port) || cfg.port < 1 || cfg.port > 65535) {
+    return `invalid port: ${cfg.port}`;
+  }
+  if (!Number.isInteger(cfg.rack) || cfg.rack < 0 || cfg.rack > 7) {
+    return `invalid rack: ${cfg.rack} (expected 0-7)`;
+  }
+  if (!Number.isInteger(cfg.slot) || cfg.slot < 0 || cfg.slot > 31) {
+    return `invalid slot: ${cfg.slot} (expected 0-31)`;
+  }
+  if (cfg.localTSAP !== undefined && (Number.isNaN(cfg.localTSAP) || cfg.localTSAP < 0 || cfg.localTSAP > 0xffff)) {
+    return `invalid localTSAP`;
+  }
+  if (cfg.remoteTSAP !== undefined && (Number.isNaN(cfg.remoteTSAP) || cfg.remoteTSAP < 0 || cfg.remoteTSAP > 0xffff)) {
+    return `invalid remoteTSAP`;
+  }
+  return null;
+}
 
 function addDbAddresses(
   addresses: Array<{ address: string; type: string; size: number; info?: string; value?: unknown }>,

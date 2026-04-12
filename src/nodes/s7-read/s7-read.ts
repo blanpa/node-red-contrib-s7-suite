@@ -8,6 +8,7 @@ import { createStatusUpdater } from '../shared/status-helper';
 interface S7ReadNodeDef extends NodeDef {
   server: string;
   address: string;
+  labels: string; // JSON-encoded Record<string, string> (address -> label)
   outputMode: 'single' | 'object' | 'buffer' | 'struct' | 'bits';
   topic: string;
   schema: string; // JSON-encoded S7StructField[]
@@ -36,8 +37,14 @@ export = function (RED: NodeAPI): void {
       try {
         const outputMode = ((msg as Record<string, unknown>).outputMode as string) || config.outputMode || 'single';
 
+        const topicAddress = typeof msg.topic === 'string' ? msg.topic : undefined;
+        if (msg.topic !== undefined && typeof msg.topic !== 'string') {
+          done(new Error('msg.topic must be a string'));
+          return;
+        }
+
         if (outputMode === 'buffer' || outputMode === 'bits') {
-          const addressStr = (msg.topic as string) || config.address;
+          const addressStr = topicAddress || config.address;
           if (!addressStr) {
             done(new Error('No address specified'));
             return;
@@ -74,7 +81,7 @@ export = function (RED: NodeAPI): void {
         }
 
         if (outputMode === 'struct') {
-          const addressStr = (msg.topic as string) || config.address;
+          const addressStr = topicAddress || config.address;
           if (!addressStr) {
             done(new Error('No address specified'));
             return;
@@ -152,7 +159,7 @@ export = function (RED: NodeAPI): void {
         }
 
         // Original single/object modes
-        const addressStr = (msg.topic as string) || config.address;
+        const addressStr = topicAddress || config.address;
         if (!addressStr) {
           done(new Error('No address specified'));
           return;
@@ -171,9 +178,15 @@ export = function (RED: NodeAPI): void {
         const results: S7ReadResult[] = await serverNode.connectionManager.read(items);
 
         if (outputMode === 'object' || addresses.length > 1) {
+          let labelMap: Record<string, string> = {};
+          try {
+            labelMap = JSON.parse(config.labels || '{}');
+          } catch { /* ignore */ }
+
           const payload: Record<string, unknown> = {};
           for (let i = 0; i < results.length; i++) {
-            payload[addresses[i]] = results[i].value;
+            const key = labelMap[addresses[i]] || addresses[i];
+            payload[key] = results[i].value;
           }
           send({ ...msg, payload } as NodeMessage);
         } else {

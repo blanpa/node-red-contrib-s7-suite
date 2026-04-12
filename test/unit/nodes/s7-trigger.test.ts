@@ -321,7 +321,7 @@ describe('s7-trigger node', () => {
 
       // Should use 1000ms default
       expect(node.status).toHaveBeenCalledWith(
-        expect.objectContaining({ text: 'polling 0ms' }),
+        expect.objectContaining({ text: 'polling 1000ms' }),
       );
     });
 

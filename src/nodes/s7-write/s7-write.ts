@@ -35,6 +35,12 @@ export = function (RED: NodeAPI): void {
       try {
         const mode = ((msg as Record<string, unknown>).mode as string) || config.mode || 'single';
 
+        if (msg.topic !== undefined && typeof msg.topic !== 'string') {
+          done(new Error('msg.topic must be a string'));
+          return;
+        }
+        const topicAddress = typeof msg.topic === 'string' ? msg.topic : undefined;
+
         if (mode === 'multi') {
           // Multi-write: msg.payload is an object { address: value, ... }
           const payload = msg.payload as Record<string, unknown>;
@@ -67,7 +73,7 @@ export = function (RED: NodeAPI): void {
 
         if (mode === 'struct') {
           // Struct-write: read-modify-write using schema
-          const addressStr = (msg.topic as string) || config.address;
+          const addressStr = topicAddress || config.address;
           if (!addressStr) {
             done(new Error('No base address specified'));
             return;
@@ -175,9 +181,19 @@ export = function (RED: NodeAPI): void {
         }
 
         // Single mode (default): current behavior
-        const addressStr = (msg.topic as string) || config.address;
+        const addressStr = topicAddress || config.address;
         if (!addressStr) {
           done(new Error('No address specified'));
+          return;
+        }
+
+        if (msg.payload === undefined || msg.payload === null) {
+          done(new Error('msg.payload is required for single write mode'));
+          return;
+        }
+        const pType = typeof msg.payload;
+        if (pType !== 'number' && pType !== 'boolean' && pType !== 'string' && pType !== 'bigint') {
+          done(new Error(`msg.payload must be a number, boolean, string, or bigint for single write mode (got ${pType})`));
           return;
         }
 

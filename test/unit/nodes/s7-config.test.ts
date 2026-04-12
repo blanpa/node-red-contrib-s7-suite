@@ -530,7 +530,9 @@ describe('s7-config node', () => {
       // Wait for the async connect rejection to be handled
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      expect(nodeContext.error).toHaveBeenCalledWith('Failed to connect: Connection failed');
+      expect(nodeContext.error).toHaveBeenCalledWith(
+        expect.stringContaining('Connection failed'),
+      );
     });
   });
 });

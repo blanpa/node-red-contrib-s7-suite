@@ -6,6 +6,7 @@
       name: { value: '' },
       server: { value: '', type: 's7-config', required: true },
       address: { value: '' },
+      labels: { value: '{}' },
       outputMode: { value: 'single' },
       topic: { value: '' },
       schema: { value: '[]' }
@@ -21,25 +22,104 @@
       var node = this;
       s7SuiteStatusDot('#node-input-server', '#s7r-status-dot');
 
-      // editableList for addresses
+      // editableList for addresses with optional labels
       var addrList = $('#s7r-address-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
         addButton: 'Add address',
         removable: true,
         sortable: true,
         addItem: function (row, index, data) {
-          var val = data.address || '';
-          var input = $('<input type="text" placeholder="DB1,REAL0 or DB1.DBD0" style="width:100%;">').val(val);
-          row.append(input);
+          var addrVal = data.address || '';
+          var labelVal = data.label || '';
+          var container = $('<div style="display:flex;gap:4px;">');
+          var addrInput = $('<input type="text" class="s7r-addr" placeholder="DB1,REAL0" style="flex:1;">').val(addrVal);
+          var labelInput = $('<input type="text" class="s7r-label" placeholder="Label (optional)" style="flex:1;">').val(labelVal);
+          container.append(addrInput, labelInput);
+          row.append(container);
         }
       });
 
-      // Load existing addresses
+      // Load existing addresses with labels
+      var existingLabels = {};
+      try { existingLabels = JSON.parse(node.labels || '{}'); } catch(e) {}
       var existing = (node.address || '').trim();
       if (existing) {
         var parts = existing.split(/\s+/);
         parts.forEach(function (a) {
-          if (a) addrList.editableList('addItem', { address: a });
+          if (a) addrList.editableList('addItem', { address: a, label: existingLabels[a] || '' });
         });
+      }
+
+      // CSV/Excel import
+      var fileInput = $('<input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none;">');
+      $('body').append(fileInput);
+
+      $('#s7r-import-btn').on('click', function () {
+        fileInput.trigger('click');
+      });
+
+      fileInput.on('change', function (evt) {
+        var file = evt.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          var text = e.target.result;
+          var imported = parseTagListCSV(text);
+          imported.forEach(function (item) {
+            addrList.editableList('addItem', item);
+          });
+        };
+        reader.readAsText(file);
+        // Reset so same file can be re-imported
+        fileInput.val('');
+      });
+
+      // Parse CSV/TSV tag lists (TIA Portal, Step 7, generic)
+      function parseTagListCSV(text) {
+        var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        if (lines.length < 2) return [];
+
+        // Detect separator: tab, semicolon, or comma
+        var sep = '\t';
+        var header = lines[0];
+        if (header.indexOf('\t') >= 0) sep = '\t';
+        else if (header.indexOf(';') >= 0) sep = ';';
+        else sep = ',';
+
+        var cols = header.split(sep).map(function (c) { return c.trim().replace(/^["']|["']$/g, '').toLowerCase(); });
+
+        // Find relevant columns by common names
+        var nameIdx = findCol(cols, ['name', 'symbol', 'tag', 'tagname', 'tag name', 'bezeichnung']);
+        var addrIdx = findCol(cols, ['address', 'logical address', 'logische adresse', 'adresse', 'operand', 'plc tag', 'absolute address']);
+        var typeIdx = findCol(cols, ['data type', 'datatype', 'type', 'datentyp', 'typ']);
+
+        if (addrIdx < 0) return [];
+
+        var results = [];
+        for (var i = 1; i < lines.length; i++) {
+          var fields = lines[i].split(sep).map(function (c) { return c.trim().replace(/^["']|["']$/g, ''); });
+          var addr = fields[addrIdx] || '';
+          if (!addr) continue;
+
+          // Convert IEC format (%DB1.DBD0 -> DB1.DBD0, %MW10 -> MW10)
+          addr = addr.replace(/^%/, '');
+
+          // Convert IEC I/Q prefix to nodes7 format if needed
+          // %IW0 -> IW0, %QD4 -> QD4 (these are already valid)
+
+          var label = nameIdx >= 0 ? (fields[nameIdx] || '') : '';
+
+          results.push({ address: addr, label: label });
+        }
+        return results;
+      }
+
+      function findCol(cols, names) {
+        for (var n = 0; n < names.length; n++) {
+          for (var c = 0; c < cols.length; c++) {
+            if (cols[c] === names[n]) return c;
+          }
+        }
+        return -1;
       }
 
       // Browse dialog - appends to list
@@ -127,14 +207,22 @@
       var mode = $('#node-input-outputMode').val();
 
       if (mode === 'single' || mode === 'object') {
-        // Collect addresses from editableList
+        // Collect addresses and labels from editableList
         var items = $('#s7r-address-list').editableList('items');
         var addresses = [];
+        var labelMap = {};
         items.each(function () {
-          var val = $(this).find('input').val();
-          if (val && val.trim()) addresses.push(val.trim());
+          var addr = $(this).find('.s7r-addr').val();
+          var label = $(this).find('.s7r-label').val();
+          if (addr && addr.trim()) {
+            addresses.push(addr.trim());
+            if (label && label.trim()) {
+              labelMap[addr.trim()] = label.trim();
+            }
+          }
         });
         this.address = addresses.join(' ');
+        this.labels = JSON.stringify(labelMap);
       } else {
         // Single address for buffer/struct/bits
         this.address = ($('#s7r-single-address-input').val() || '').trim();
@@ -193,6 +281,7 @@
       <div style="display:inline-block;width:70%;">
         <div style="margin-bottom:4px;">
           <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
+          <button type="button" id="s7r-import-btn" class="red-ui-button red-ui-button-small" title="Import CSV/Excel tag list"><i class="fa fa-upload"></i> Import CSV</button>
         </div>
         <ol id="s7r-address-list"></ol>
       </div>
@@ -226,6 +315,7 @@
   </div>
   <!-- Hidden fields -->
   <input type="hidden" id="node-input-address">
+  <input type="hidden" id="node-input-labels">
   <input type="hidden" id="node-input-schema">
   <div id="s7r-browse-dialog" style="display:none;border:1px solid #ccc;border-radius:4px;padding:8px;margin-top:8px;background:#fafafa;max-height:400px;overflow:hidden;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -260,7 +350,7 @@
     <dt>Single value</dt>
     <dd>Reads one address and returns the scalar value.</dd>
     <dt>Object</dt>
-    <dd>Reads one or more addresses and returns an object with address keys.</dd>
+    <dd>Reads one or more addresses and returns an object. Keys are the label (if set) or address. Use <b>Import CSV</b> to bulk-import tag lists from TIA Portal or Step 7 symbol exports.</dd>
     <dt>Raw Buffer</dt>
     <dd>Reads N bytes and returns a Node.js Buffer. Address format: <code>DB1,BYTE0.0.100</code> (100 bytes from offset 0). Useful for JSON strings in DBs or custom binary parsing.</dd>
     <dt>Struct (schema)</dt>

@@ -5,7 +5,7 @@ import { IS7Backend } from '../../backend/s7-backend.interface';
 import { BrowseResult, BrowseScope, AreaInfo } from '../../types/s7-browse';
 import { S7DataType } from '../../types/s7-address';
 import { readValue } from '../../core/data-converter';
-import { createStatusUpdater } from '../shared/status-helper';
+import { statusForState } from '../shared/status-helper';
 
 interface S7BrowseNodeDef extends NodeDef {
   server: string;
@@ -28,16 +28,13 @@ export = function (RED: NodeAPI): void {
       return;
     }
 
+    serverNode.registerChildNode(this);
+
     let browsing = false;
 
-    const baseStatusUpdater = createStatusUpdater(this);
     const updateStatus = ({ newState }: { newState: string }) => {
       if (browsing) return;
-      if (newState === 'connected') {
-        this.status({ fill: 'green', shape: 'dot', text: 'ready' });
-      } else {
-        baseStatusUpdater({ newState });
-      }
+      this.status(statusForState(newState, { connectedText: 'ready' }));
     };
 
     serverNode.connectionManager.on('stateChanged', updateStatus);
@@ -101,6 +98,7 @@ export = function (RED: NodeAPI): void {
 
     this.on('close', () => {
       if (serverNode) {
+        serverNode.deregisterChildNode(this);
         serverNode.connectionManager.removeListener('stateChanged', updateStatus);
       }
     });
@@ -221,8 +219,8 @@ async function browseProbe(
 
   const areaProbes: Array<{ scope: BrowseScope; areaCode: number; name: string; defaultSize: number }> = [
     { scope: 'M', areaCode: 0x83, name: 'Merker', defaultSize: 256 },
-    { scope: 'I', areaCode: 0x81, name: 'Input', defaultSize: 128 },
-    { scope: 'Q', areaCode: 0x82, name: 'Output', defaultSize: 128 },
+    { scope: 'I', areaCode: 0x81, name: 'Input', defaultSize: 8192 },
+    { scope: 'Q', areaCode: 0x82, name: 'Output', defaultSize: 8192 },
     { scope: 'C' as BrowseScope, areaCode: 0x1c, name: 'Counter', defaultSize: 64 },
     { scope: 'T' as BrowseScope, areaCode: 0x1d, name: 'Timer', defaultSize: 64 },
   ];

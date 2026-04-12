@@ -3,6 +3,7 @@ import { S7ConfigNode } from '../s7-config/s7-config-types';
 import { parseAddress, toNodes7Address, splitAddresses } from '../../core/address-parser';
 import { Poller, EdgeMode } from '../../core/poller';
 import { S7ReadItem, S7ReadResult } from '../../types/s7-address';
+import { statusForState } from '../shared/status-helper';
 
 interface S7TriggerNodeDef extends NodeDef {
   server: string;
@@ -74,24 +75,15 @@ export = function (RED: NodeAPI): void {
       this.error(err.message);
     });
 
+    let currentInterval = config.interval || 1000;
     const updateStatus = ({ newState }: { newState: string }) => {
-      switch (newState) {
-        case 'connected':
-          this.status({ fill: 'green', shape: 'dot', text: `polling ${config.interval}ms` });
-          if (!poller.isRunning()) poller.start();
-          break;
-        case 'connecting':
-        case 'reconnecting':
-          this.status({ fill: 'yellow', shape: 'ring', text: newState });
-          poller.stop();
-          break;
-        case 'error':
-          this.status({ fill: 'red', shape: 'dot', text: 'error' });
-          poller.stop();
-          break;
-        default:
-          this.status({ fill: 'grey', shape: 'ring', text: 'disconnected' });
-          poller.stop();
+      this.status(
+        statusForState(newState, { connectedText: () => `polling ${currentInterval}ms` }),
+      );
+      if (newState === 'connected') {
+        if (!poller.isRunning()) poller.start();
+      } else {
+        poller.stop();
       }
     };
 
@@ -104,8 +96,11 @@ export = function (RED: NodeAPI): void {
 
       if (Object.keys(update).length > 0) {
         poller.updateConfig(update as Partial<import('../../core/poller').PollerConfig>);
-        if (update.interval) {
-          this.status({ fill: 'green', shape: 'dot', text: `polling ${update.interval}ms` });
+        if (typeof update.interval === 'number') {
+          currentInterval = update.interval;
+          if (serverNode.connectionManager.getState() === 'connected') {
+            this.status({ fill: 'green', shape: 'dot', text: `polling ${currentInterval}ms` });
+          }
         }
       }
       done();

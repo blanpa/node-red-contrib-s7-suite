@@ -30,6 +30,8 @@ describe('s7-browse node', () => {
     return {
       connectionManager: connManager,
       s7Config: { backend: backendType },
+      registerChildNode: jest.fn(),
+      deregisterChildNode: jest.fn(),
     };
   }
 
