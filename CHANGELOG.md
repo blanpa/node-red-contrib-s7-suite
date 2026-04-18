@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.3] - 2026-04-17
+
+### Added
+- **Excel/XLSX bulk import**: s7-read node now supports importing tag lists from `.xlsx`/`.xls`/`.xlsm`/`.xlsb`/`.ods` files (lazy-loaded SheetJS from CDN, no runtime npm dependency)
+- **Import feedback**: User-visible notifications via `RED.notify` for import success, warnings (no tags found) and errors
+- **Docker deployment**: New `Dockerfile`, `docker-compose.yml` and `.dockerignore` for one-command Node-RED setup with the S7 nodes pre-installed
+- **MIT LICENSE file**: Added (the package was already declared MIT in `package.json`)
+- **README**: Comprehensive rewrite with comparison table against existing S7 Node-RED packages, Why-section, troubleshooting, contribution guide, and bulk-import highlight
+
+### Changed
+- **Address list height**: Edit dialog address list grew from 80 px to 300 px minimum (~6× larger) and now follows the dialog size via `oneditresize`
+- **Schema list height**: Struct schema list also grew from 80 px to 250 px minimum and resizes with the dialog
+- **Import button label**: Renamed from "Import CSV" to "Import CSV/Excel"
+
+### Fixed
+- **`.gitignore`**: Extended with sensible defaults (`.env`, IDE files, OS files, Docker overrides, logs, `misc/` for vendor docs)
+
+### Tested
+- End-to-end Docker test: container build, all 6 nodes loaded, sim-backend single read, object read with labels, write + readback through HTTP endpoints
+- Browser-verified UI: address list height confirmed at ~535 px (was ~80 px before)
+
 ## [0.0.2] - 2026-03-12
 
 ### Added

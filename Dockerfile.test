@@ -1,0 +1,14 @@
+FROM nodered/node-red:4.1.7-22-minimal
+
+USER root
+
+COPY s7-suite-pkg.tar /tmp/s7-suite.tgz
+
+RUN cd /usr/src/node-red && \
+    npm install /tmp/s7-suite.tgz && \
+    rm -f /tmp/s7-suite.tgz && \
+    chown -R node-red:node-red /data
+
+USER node-red
+
+EXPOSE 1880

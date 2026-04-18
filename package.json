@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-s7-suite",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Node-RED nodes for Siemens S7 PLC communication with dual backend support (nodes7 + node-snap7)",
   "keywords": [
     "node-red",
@@ -66,6 +66,7 @@
   "files": [
     "dist/",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ]
 }

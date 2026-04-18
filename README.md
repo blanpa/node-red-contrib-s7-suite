@@ -23,6 +23,8 @@ s7-suite is a TypeScript-based Node-RED package for communicating with Siemens S
 
 **Flexible read/write modes** — Single values, combined objects, raw buffers, structured schemas, or unpacked bit arrays.
 
+**Bulk tag import** — Import full PLC tag lists from TIA Portal (`.xlsx`) or Step 7 symbol exports (`.csv`/`.tsv`) into the read node with one click. Auto-detects column names (`name`/`symbol`/`tag` and `address`) and separators (tab/semicolon/comma). Imported tags get human-readable labels used as object keys in the output.
+
 ## Features
 
 - **s7-config** — Connection configuration with backend selection and auto-reconnect
@@ -106,6 +108,10 @@ Requires the **snap7** backend. Send a message to execute the configured action,
 **LOGO connection** — LOGO PLCs require TSAP-based connections. Set PLC Type to "LOGO" and configure Local TSAP (e.g. `0x0100`) and Remote TSAP (e.g. `0x0200`).
 
 **Address parse errors** — Verify address format. Examples: `DB1,REAL0`, `DB1.DBD0`, `MW4`, `I0.1`, `QB0`. See the address format table above.
+
+**Excel import does nothing** — XLSX parsing requires the SheetJS library, which is loaded on demand from a public CDN. If your Node-RED editor runs in an air-gapped environment, export your tag list as `.csv` from Excel/TIA Portal instead.
+
+**Remote I/O via Profibus/Profinet not browsable** — The browse node scans local rack I/O (areas I/Q, M, DB, C, T) and PLC blocks. Distributed I/O addresses on remote stations (Profibus DP couplers, Profinet IO) are reachable for read/write using the standard `IB`/`IW`/`ID`/`QB`/`QW`/`QD` syntax with the absolute peripheral address, but they will not appear in the browse results since they are not enumerable through the standard S7 protocol.
 
 ## Installation
 
@@ -230,6 +236,10 @@ docs: add Docker deployment instructions
 - Use the **sim backend** for development — no physical PLC required
 - Import `examples/test-flows.json` into Node-RED for a ready-made test setup
 - Run the project in Docker for a quick local environment: `docker compose up -d`
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## License
 

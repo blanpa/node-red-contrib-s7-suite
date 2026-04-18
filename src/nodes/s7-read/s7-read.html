@@ -23,7 +23,7 @@
       s7SuiteStatusDot('#node-input-server', '#s7r-status-dot');
 
       // editableList for addresses with optional labels
-      var addrList = $('#s7r-address-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
+      var addrList = $('#s7r-address-list').css({ 'min-height': '300px', 'min-width': '300px' }).editableList({
         addButton: 'Add address',
         removable: true,
         sortable: true,
@@ -60,18 +60,82 @@
       fileInput.on('change', function (evt) {
         var file = evt.target.files[0];
         if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function (e) {
-          var text = e.target.result;
-          var imported = parseTagListCSV(text);
-          imported.forEach(function (item) {
-            addrList.editableList('addItem', item);
+        var name = (file.name || '').toLowerCase();
+        var isExcel = /\.(xlsx|xls|xlsm|xlsb|ods)$/i.test(name);
+
+        if (isExcel) {
+          loadSheetJS(function (err, XLSX) {
+            if (err || !XLSX) {
+              RED.notify('Excel import requires SheetJS. Could not load library: ' + (err && err.message ? err.message : 'unknown error'), 'error');
+              fileInput.val('');
+              return;
+            }
+            var reader = new FileReader();
+            reader.onload = function (e) {
+              try {
+                var data = new Uint8Array(e.target.result);
+                var wb = XLSX.read(data, { type: 'array' });
+                var sheetName = wb.SheetNames[0];
+                var ws = wb.Sheets[sheetName];
+                // Convert to CSV string and reuse the existing parser
+                var csv = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+                var imported = parseTagListCSV(csv);
+                if (imported.length === 0) {
+                  RED.notify('No tags found in Excel sheet "' + sheetName + '". Expected columns: name/symbol/tag and address.', 'warning');
+                } else {
+                  imported.forEach(function (item) { addrList.editableList('addItem', item); });
+                  RED.notify('Imported ' + imported.length + ' tag(s) from "' + file.name + '".', 'success');
+                }
+              } catch (parseErr) {
+                RED.notify('Failed to parse Excel file: ' + parseErr.message, 'error');
+              }
+              fileInput.val('');
+            };
+            reader.readAsArrayBuffer(file);
           });
-        };
-        reader.readAsText(file);
-        // Reset so same file can be re-imported
-        fileInput.val('');
+        } else {
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            var text = e.target.result;
+            var imported = parseTagListCSV(text);
+            if (imported.length === 0) {
+              RED.notify('No tags found. Expected a header row with columns: name/symbol/tag and address.', 'warning');
+            } else {
+              imported.forEach(function (item) { addrList.editableList('addItem', item); });
+              RED.notify('Imported ' + imported.length + ' tag(s) from "' + file.name + '".', 'success');
+            }
+            fileInput.val('');
+          };
+          reader.readAsText(file);
+        }
       });
+
+      // Lazy-load SheetJS from CDN (no runtime npm dependency)
+      var _sheetJsLoading = null;
+      function loadSheetJS(callback) {
+        if (typeof window.XLSX !== 'undefined') {
+          callback(null, window.XLSX);
+          return;
+        }
+        if (_sheetJsLoading) {
+          _sheetJsLoading.push(callback);
+          return;
+        }
+        _sheetJsLoading = [callback];
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        script.onload = function () {
+          var cbs = _sheetJsLoading || [];
+          _sheetJsLoading = null;
+          cbs.forEach(function (cb) { cb(null, window.XLSX); });
+        };
+        script.onerror = function () {
+          var cbs = _sheetJsLoading || [];
+          _sheetJsLoading = null;
+          cbs.forEach(function (cb) { cb(new Error('Failed to load SheetJS from CDN. Check your internet connection or export the file as CSV.')); });
+        };
+        document.head.appendChild(script);
+      }
 
       // Parse CSV/TSV tag lists (TIA Portal, Step 7, generic)
       function parseTagListCSV(text) {
@@ -139,7 +203,7 @@
 
       // Schema editableList for struct mode
       var S7_TYPES = ['BOOL','BYTE','WORD','DWORD','INT','DINT','REAL','LREAL','CHAR','STRING'];
-      var schemaList = $('#s7r-schema-list').css({ 'min-height': '80px', 'min-width': '300px' }).editableList({
+      var schemaList = $('#s7r-schema-list').css({ 'min-height': '250px', 'min-width': '300px' }).editableList({
         addButton: 'Add field',
         removable: true,
         sortable: true,
@@ -202,6 +266,13 @@
       }
 
       updateModeUI();
+    },
+    oneditresize: function (size) {
+      // Make the address/schema lists grow with the dialog height
+      var rowHeight = 80;
+      var listHeight = Math.max(200, size.height - rowHeight - 280);
+      $('#s7r-address-list').css('height', listHeight + 'px');
+      $('#s7r-schema-list').css('height', listHeight + 'px');
     },
     oneditsave: function () {
       var mode = $('#node-input-outputMode').val();
@@ -281,7 +352,7 @@
       <div style="display:inline-block;width:70%;">
         <div style="margin-bottom:4px;">
           <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
-          <button type="button" id="s7r-import-btn" class="red-ui-button red-ui-button-small" title="Import CSV/Excel tag list"><i class="fa fa-upload"></i> Import CSV</button>
+          <button type="button" id="s7r-import-btn" class="red-ui-button red-ui-button-small" title="Import CSV or Excel tag list (TIA Portal, Step 7)"><i class="fa fa-upload"></i> Import CSV/Excel</button>
         </div>
         <ol id="s7r-address-list"></ol>
       </div>
@@ -350,7 +421,7 @@
     <dt>Single value</dt>
     <dd>Reads one address and returns the scalar value.</dd>
     <dt>Object</dt>
-    <dd>Reads one or more addresses and returns an object. Keys are the label (if set) or address. Use <b>Import CSV</b> to bulk-import tag lists from TIA Portal or Step 7 symbol exports.</dd>
+    <dd>Reads one or more addresses and returns an object. Keys are the label (if set) or address. Use <b>Import CSV/Excel</b> to bulk-import tag lists from TIA Portal (.xlsx) or Step 7 symbol exports (.csv/.tsv). The importer auto-detects column names (<code>name</code>/<code>symbol</code>/<code>tag</code> and <code>address</code>) and supports tab, semicolon and comma separators. IEC-style addresses with <code>%</code> prefix are converted automatically.</dd>
     <dt>Raw Buffer</dt>
     <dd>Reads N bytes and returns a Node.js Buffer. Address format: <code>DB1,BYTE0.0.100</code> (100 bytes from offset 0). Useful for JSON strings in DBs or custom binary parsing.</dd>
     <dt>Struct (schema)</dt>
