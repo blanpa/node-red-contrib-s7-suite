@@ -17,6 +17,14 @@
   ],
   "license": "MIT",
   "author": "LA",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blanpa/node-red-contrib-s7-suite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/blanpa/node-red-contrib-s7-suite/issues"
+  },
+  "homepage": "https://github.com/blanpa/node-red-contrib-s7-suite#readme",
   "main": "dist/nodes/index.js",
   "scripts": {
     "build": "tsc && npm run copy-html",
