@@ -1,0 +1,5 @@
+Name;Address;Data Type;Comment
+Motor1_Temperature;DB1,REAL0;Real;Motor 1 temperature in degrees Celsius
+Tank_Counter;DB1,INT4;Int;Tank fill counter
+Pump_Active;DB1,BOOL6.0;Bool;Pump running status
+Production_Total;DB1,DINT8;DInt;Total produced units

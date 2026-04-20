@@ -9,4 +9,6 @@ coverage/
 .prettierrc
 jest.config.js
 test/
+test-assets/
+misc/
 .DS_Store
