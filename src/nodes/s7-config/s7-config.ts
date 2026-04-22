@@ -6,6 +6,8 @@ import { S7ConfigNode } from './s7-config-types';
 import { readValue } from '../../core/data-converter';
 import { parseAddress } from '../../core/address-parser';
 import { AREA_CODE_MAP } from '../../types/s7-address';
+import { parseCfg } from '../../core/cfg-parser';
+import { parseTiaXml } from '../../core/tia-xml-parser';
 
 interface S7ConfigNodeDef extends NodeDef {
   host: string;
@@ -96,6 +98,36 @@ export = function (RED: NodeAPI): void {
 
   RED.httpAdmin.get('/s7-suite/plc-defaults', (_req, res) => {
     res.json(PLC_DEFAULT_SLOTS);
+  });
+
+  RED.httpAdmin.post('/s7-suite/cfg-import', (req, res) => {
+    const body = req.body as { content?: unknown } | undefined;
+    const content = body && typeof body.content === 'string' ? body.content : null;
+    if (!content) {
+      res.status(400).json({ error: 'Expected JSON body with string "content" field' });
+      return;
+    }
+    try {
+      const parsed = parseCfg(content);
+      res.json(parsed);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  RED.httpAdmin.post('/s7-suite/tia-xml-import', (req, res) => {
+    const body = req.body as { content?: unknown } | undefined;
+    const content = body && typeof body.content === 'string' ? body.content : null;
+    if (!content) {
+      res.status(400).json({ error: 'Expected JSON body with string "content" field' });
+      return;
+    }
+    try {
+      const parsed = parseTiaXml(content);
+      res.json(parsed);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   RED.httpAdmin.get('/s7-suite/connection-state/:id', (req, res) => {

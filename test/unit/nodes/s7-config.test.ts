@@ -17,6 +17,7 @@ describe('s7-config node', () => {
   let registeredType: string;
   let constructorFn: Function;
   let httpGetHandlers: Record<string, Function>;
+  let httpPostHandlers: Record<string, Function>;
 
   // Mock RED API
   const mockRED = {
@@ -32,12 +33,16 @@ describe('s7-config node', () => {
       get: jest.fn((path: string, handler: Function) => {
         httpGetHandlers[path] = handler;
       }),
+      post: jest.fn((path: string, handler: Function) => {
+        httpPostHandlers[path] = handler;
+      }),
     },
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     httpGetHandlers = {};
+    httpPostHandlers = {};
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     s7ConfigModule(mockRED as any);
   });
@@ -52,6 +57,45 @@ describe('s7-config node', () => {
     expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/plc-defaults', expect.any(Function));
     expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/connection-state/:id', expect.any(Function));
     expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/browse/:id', expect.any(Function));
+    expect(mockRED.httpAdmin.post).toHaveBeenCalledWith('/s7-suite/cfg-import', expect.any(Function));
+  });
+
+  describe('/s7-suite/cfg-import', () => {
+    function invoke(body: unknown): { status: number; payload: unknown } {
+      const handler = httpPostHandlers['/s7-suite/cfg-import'];
+      let status = 200;
+      let payload: unknown = null;
+      const req = { body };
+      const res = {
+        status(code: number) { status = code; return this; },
+        json(p: unknown) { payload = p; return this; },
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      handler(req as any, res as any);
+      return { status, payload };
+    }
+
+    it('returns 400 when no content is provided', () => {
+      const { status, payload } = invoke({});
+      expect(status).toBe(400);
+      expect((payload as { error: string }).error).toMatch(/content/);
+    });
+
+    it('parses a minimal cfg snippet into tags', () => {
+      const cfg = [
+        'STATION S7300 , "Demo"',
+        'DPSUBSYSTEM 1, DPADDRESS 10, SLOT 7, "75x-430 8DI/24V DC", "8DE"',
+        'LOCAL_IN_ADDRESSES ',
+        '  ADDRESS  0, 0, 1, 0, 2, 0',
+        'SYMBOL  I , 3, "NA_INT", "Not-Aus"',
+      ].join('\n');
+      const { status, payload } = invoke({ content: cfg });
+      expect(status).toBe(200);
+      const result = payload as { station: { name: string }; tags: Array<{ address: string; name: string }> };
+      expect(result.station.name).toBe('Demo');
+      expect(result.tags).toHaveLength(1);
+      expect(result.tags[0]).toMatchObject({ address: 'I0.3', name: 'NA_INT' });
+    });
   });
 
   describe('constructor', () => {

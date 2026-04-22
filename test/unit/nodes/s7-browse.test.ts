@@ -468,4 +468,76 @@ describe('s7-browse node', () => {
       expect(done).toHaveBeenCalledWith();
     });
   });
+
+  describe('CFG source (offline hardware config)', () => {
+    const MINIMAL_CFG = [
+      'STATION S7300 , "Demo"',
+      'DPSUBSYSTEM 1, DPADDRESS 10, SLOT 7, "75x-430 8DI/24V DC", "8DE"',
+      'LOCAL_IN_ADDRESSES ',
+      '  ADDRESS  0, 0, 1, 0, 2, 0',
+      'SYMBOL  I , 0, "NA_INT", "Not-Aus"',
+    ].join('\n');
+
+    it('reports "no cfg loaded" when configured but no file cached', () => {
+      const node = createNodeContext();
+      constructorFn.call(node, { id: 'b', type: 's7-browse', source: 'cfg', cfgTags: '' });
+      expect(node.status).toHaveBeenCalledWith({ fill: 'yellow', shape: 'ring', text: 'no cfg loaded' });
+    });
+
+    it('emits cached tags on input message', async () => {
+      // Load cfg into the node via a synthesised JSON cache matching parseCfg output.
+      const cached = JSON.stringify({
+        station: { type: 'S7300', name: 'Demo' },
+        modules: [],
+        tags: [{ name: 'NA_INT', comment: 'Not-Aus', area: 'I', byteOffset: 0, bitOffset: 0, dataType: 'BOOL', address: 'I0.0', source: 'x' }],
+        warnings: [],
+      });
+      const node = createNodeContext();
+      constructorFn.call(node, { id: 'b', type: 's7-browse', source: 'cfg', cfgTags: cached });
+
+      const send = jest.fn();
+      const done = jest.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inputHandler = (node as any).listeners('input')[0];
+      await inputHandler({ _msgid: '1', payload: null }, send, done);
+
+      expect(send).toHaveBeenCalled();
+      const out = send.mock.calls[0][0].payload;
+      expect(out.tags).toHaveLength(1);
+      expect(out.tags[0].name).toBe('NA_INT');
+      expect(done).toHaveBeenCalledWith();
+    });
+
+    it('parses msg.cfgContent at runtime, overriding the cache', async () => {
+      const node = createNodeContext();
+      constructorFn.call(node, { id: 'b', type: 's7-browse', source: 'cfg', cfgTags: '' });
+
+      const send = jest.fn();
+      const done = jest.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inputHandler = (node as any).listeners('input')[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await inputHandler({ _msgid: '1', cfgContent: MINIMAL_CFG } as any, send, done);
+
+      expect(send).toHaveBeenCalled();
+      const out = send.mock.calls[0][0].payload;
+      expect(out.station.name).toBe('Demo');
+      expect(out.tags).toHaveLength(1);
+      expect(out.tags[0].address).toBe('I0.0');
+    });
+
+    it('reports an error via done() when neither cache nor cfgContent is provided', async () => {
+      const node = createNodeContext();
+      constructorFn.call(node, { id: 'b', type: 's7-browse', source: 'cfg', cfgTags: '' });
+
+      const send = jest.fn();
+      const done = jest.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inputHandler = (node as any).listeners('input')[0];
+      await inputHandler({ _msgid: '1', payload: null }, send, done);
+
+      expect(send).not.toHaveBeenCalled();
+      expect(done).toHaveBeenCalledWith(expect.any(Error));
+    });
+  });
 });

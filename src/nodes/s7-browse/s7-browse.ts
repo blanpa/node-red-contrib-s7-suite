@@ -6,6 +6,7 @@ import { BrowseResult, BrowseScope, AreaInfo } from '../../types/s7-browse';
 import { S7DataType } from '../../types/s7-address';
 import { readValue } from '../../core/data-converter';
 import { statusForState } from '../shared/status-helper';
+import { parseCfg, CfgParseResult } from '../../core/cfg-parser';
 
 interface S7BrowseNodeDef extends NodeDef {
   server: string;
@@ -16,11 +17,59 @@ interface S7BrowseNodeDef extends NodeDef {
   scopeC: boolean;
   scopeT: boolean;
   maxDbNumber: number;
+  /** "live" (default, queries the connected PLC) or "cfg" (emits tags from a preloaded .cfg export). */
+  source: 'live' | 'cfg';
+  /** Cached parse result of an uploaded STEP 7 .cfg, persisted as JSON string. */
+  cfgTags: string;
 }
 
 export = function (RED: NodeAPI): void {
   function S7BrowseNodeConstructor(this: Node, config: S7BrowseNodeDef): void {
     RED.nodes.createNode(this, config);
+
+    const source: 'live' | 'cfg' = config.source === 'cfg' ? 'cfg' : 'live';
+
+    if (source === 'cfg') {
+      let cached: CfgParseResult | null = null;
+      const rawTags = (config.cfgTags || '').trim();
+      if (rawTags) {
+        try {
+          cached = JSON.parse(rawTags) as CfgParseResult;
+          this.status({
+            fill: 'green',
+            shape: 'dot',
+            text: `cfg: ${cached.tags?.length || 0} tags`,
+          });
+        } catch {
+          this.status({ fill: 'red', shape: 'ring', text: 'invalid cfg cache' });
+        }
+      } else {
+        this.status({ fill: 'yellow', shape: 'ring', text: 'no cfg loaded' });
+      }
+
+      this.on('input', (msg: NodeMessage, _send, done) => {
+        const send = _send || ((m: NodeMessage) => this.send(m));
+        let payloadParsed: CfgParseResult | null = cached;
+        const msgContent = (msg as Record<string, unknown>).cfgContent;
+        if (typeof msgContent === 'string' && msgContent.trim()) {
+          try {
+            payloadParsed = parseCfg(msgContent);
+          } catch (err) {
+            done(err instanceof Error ? err : new Error(String(err)));
+            return;
+          }
+        }
+        if (!payloadParsed) {
+          done(new Error('No .cfg loaded — upload one in the node editor or send msg.cfgContent'));
+          return;
+        }
+        send({ ...msg, payload: payloadParsed } as NodeMessage);
+        done();
+      });
+
+      this.on('close', () => { /* no resources */ });
+      return;
+    }
 
     const serverNode = RED.nodes.getNode(config.server) as S7ConfigNode | null;
     if (!serverNode) {

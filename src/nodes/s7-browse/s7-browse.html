@@ -4,7 +4,17 @@
     color: '#4FC3F7',
     defaults: {
       name: { value: '' },
-      server: { value: '', type: 's7-config', required: true },
+      server: {
+        value: '',
+        type: 's7-config',
+        required: false,
+        validate: function (v) {
+          // Server is only mandatory in "live" mode.
+          return this.source === 'cfg' || !!v;
+        }
+      },
+      source: { value: 'live' },
+      cfgTags: { value: '' },
       scopeDB: { value: true },
       scopeM: { value: false },
       scopeI: { value: false },
@@ -18,10 +28,86 @@
     icon: 's7-suite.svg',
     paletteLabel: 'S7 Browse',
     label: function () {
+      if (this.source === 'cfg') {
+        var summary = '';
+        try {
+          var parsed = JSON.parse(this.cfgTags || 'null');
+          if (parsed && parsed.tags) summary = ' (cfg: ' + parsed.tags.length + ')';
+        } catch (e) { /* ignore */ }
+        return this.name || ('S7 Browse' + summary);
+      }
       return this.name || 'S7 Browse';
     },
     oneditprepare: function () {
       s7SuiteStatusDot('#node-input-server', '#s7b-status-dot');
+
+      function updateSourceUI() {
+        var src = $('#node-input-source').val();
+        $('.s7b-live-only').toggle(src === 'live');
+        $('.s7b-cfg-only').toggle(src === 'cfg');
+      }
+      $('#node-input-source').on('change', updateSourceUI);
+      updateSourceUI();
+
+      // Render a summary for the currently cached cfg (if any).
+      function renderCfgSummary() {
+        var raw = $('#node-input-cfgTags').val();
+        var box = $('#s7b-cfg-summary');
+        if (!raw) { box.text('No STEP 7 hardware config loaded. Upload a .cfg export to extract tags.'); return; }
+        try {
+          var parsed = JSON.parse(raw);
+          var station = parsed.station ? (parsed.station.name + ' (' + parsed.station.type + ')') : '(unknown station)';
+          var modCount = (parsed.modules || []).length;
+          var tagCount = (parsed.tags || []).length;
+          box.html('<b>Station:</b> ' + $('<div>').text(station).html() +
+            '<br><b>Modules:</b> ' + modCount +
+            '<br><b>Tags:</b> ' + tagCount);
+        } catch (e) {
+          box.text('Cached cfg is not valid JSON. Re-upload the file.');
+        }
+      }
+      renderCfgSummary();
+
+      var cfgFileInput = $('<input type="file" accept=".cfg" style="display:none;">');
+      $('body').append(cfgFileInput);
+      $('#s7b-cfg-upload').on('click', function () { cfgFileInput.trigger('click'); });
+      $('#s7b-cfg-clear').on('click', function () {
+        $('#node-input-cfgTags').val('');
+        renderCfgSummary();
+      });
+
+      cfgFileInput.on('change', function (evt) {
+        var file = evt.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            var buf = new Uint8Array(e.target.result);
+            var text;
+            try { text = new TextDecoder('windows-1252').decode(buf); }
+            catch (_e) { text = new TextDecoder('iso-8859-15').decode(buf); }
+            $.ajax({
+              url: 's7-suite/cfg-import',
+              type: 'POST',
+              contentType: 'application/json',
+              data: JSON.stringify({ content: text }),
+              success: function (result) {
+                $('#node-input-cfgTags').val(JSON.stringify(result));
+                renderCfgSummary();
+                RED.notify('Loaded ' + ((result.tags || []).length) + ' tag(s) from "' + file.name + '".', 'success');
+              },
+              error: function (xhr) {
+                var msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Server-side parse failed';
+                RED.notify('Failed to import cfg: ' + msg, 'error');
+              }
+            });
+          } catch (err) {
+            RED.notify('Failed to read cfg file: ' + err.message, 'error');
+          }
+          cfgFileInput.val('');
+        };
+        reader.readAsArrayBuffer(file);
+      });
     }
   });
 </script>
@@ -32,70 +118,99 @@
     <input type="text" id="node-input-name" placeholder="Name">
   </div>
   <div class="form-row">
+    <label for="node-input-source"><i class="fa fa-database"></i> Source</label>
+    <select id="node-input-source" style="width:70%;">
+      <option value="live">Live PLC (online discovery)</option>
+      <option value="cfg">STEP 7 .cfg hardware export (offline)</option>
+    </select>
+  </div>
+  <div class="form-row s7b-live-only">
     <label for="node-input-server"><i class="fa fa-server"></i> Server</label>
     <div style="display:inline-flex;width:70%;align-items:center;">
       <input type="text" id="node-input-server" style="flex:1;">
       <span id="s7b-status-dot" style="width:12px;height:12px;border-radius:50%;background:#999;display:inline-block;margin-left:6px;flex-shrink:0;" title="Connection status"></span>
     </div>
   </div>
-  <div class="form-row">
-    <label><i class="fa fa-search"></i> Scope</label>
+  <div class="s7b-live-only">
+    <div class="form-row">
+      <label><i class="fa fa-search"></i> Scope</label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeDB" style="width: auto; margin-right: 5px;">
+        Data Blocks (DB)
+      </label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeM" style="width: auto; margin-right: 5px;">
+        Merker (M)
+      </label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeI" style="width: auto; margin-right: 5px;">
+        Inputs (I)
+      </label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeQ" style="width: auto; margin-right: 5px;">
+        Outputs (Q)
+      </label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeC" style="width: auto; margin-right: 5px;">
+        Counters (C)
+      </label>
+    </div>
+    <div class="form-row" style="margin-left: 20px;">
+      <label style="width: auto;">
+        <input type="checkbox" id="node-input-scopeT" style="width: auto; margin-right: 5px;">
+        Timers (T)
+      </label>
+    </div>
+    <div class="form-row">
+      <label for="node-input-maxDbNumber"><i class="fa fa-sort-numeric-asc"></i> Max DB Number</label>
+      <input type="number" id="node-input-maxDbNumber" placeholder="999">
+    </div>
+    <div class="form-tips">
+      <p>Send any message to start browsing. Progress is shown in node status.</p>
+      <p><strong>snap7 backend:</strong> Uses native block listing (fast).</p>
+      <p><strong>nodes7 backend:</strong> Probe-based discovery (slower, rate-limited).</p>
+    </div>
   </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeDB" style="width: auto; margin-right: 5px;">
-      Data Blocks (DB)
-    </label>
-  </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeM" style="width: auto; margin-right: 5px;">
-      Merker (M)
-    </label>
-  </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeI" style="width: auto; margin-right: 5px;">
-      Inputs (I)
-    </label>
-  </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeQ" style="width: auto; margin-right: 5px;">
-      Outputs (Q)
-    </label>
-  </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeC" style="width: auto; margin-right: 5px;">
-      Counters (C)
-    </label>
-  </div>
-  <div class="form-row" style="margin-left: 20px;">
-    <label style="width: auto;">
-      <input type="checkbox" id="node-input-scopeT" style="width: auto; margin-right: 5px;">
-      Timers (T)
-    </label>
-  </div>
-  <div class="form-row">
-    <label for="node-input-maxDbNumber"><i class="fa fa-sort-numeric-asc"></i> Max DB Number</label>
-    <input type="number" id="node-input-maxDbNumber" placeholder="999">
-  </div>
-  <div class="form-tips">
-    <p>Send any message to start browsing. Progress is shown in node status.</p>
-    <p><strong>snap7 backend:</strong> Uses native block listing (fast).</p>
-    <p><strong>nodes7 backend:</strong> Probe-based discovery (slower, rate-limited).</p>
+  <div class="s7b-cfg-only">
+    <div class="form-row">
+      <label><i class="fa fa-upload"></i> CFG</label>
+      <div style="display:inline-block;width:70%;">
+        <button type="button" id="s7b-cfg-upload" class="red-ui-button red-ui-button-small"><i class="fa fa-upload"></i> Upload .cfg</button>
+        <button type="button" id="s7b-cfg-clear" class="red-ui-button red-ui-button-small"><i class="fa fa-eraser"></i> Clear</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>&nbsp;</label>
+      <div id="s7b-cfg-summary" style="display:inline-block;width:70%;padding:8px;border:1px solid #ddd;border-radius:4px;background:#fafafa;font-size:12px;"></div>
+    </div>
+    <input type="hidden" id="node-input-cfgTags">
+    <div class="form-tips">
+      <p>Upload a STEP 7 V5 hardware configuration export (<code>.cfg</code>, created via <em>SIMATIC Manager → Station → Export…</em>). The parser extracts all symbolic I/O <strong>including remote I/O behind Profibus/Profinet couplers</strong> — which a live browse cannot discover.</p>
+      <p>Send any message to emit the parsed result as <code>msg.payload</code>. You can also override the preloaded file at runtime via <code>msg.cfgContent</code> (string).</p>
+    </div>
   </div>
 </script>
 
 <script type="text/html" data-help-name="s7-browse">
-  <p>Discovers the address space of a Siemens S7 PLC.</p>
+  <p>Discovers the address space of a Siemens S7 PLC — either live from a connected PLC or from an offline STEP 7 hardware configuration export.</p>
   <h3>Inputs</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">any</span></dt>
-    <dd>Any message triggers the browse operation</dd>
+    <dd>Any message triggers the browse / emit operation</dd>
+    <dt class="optional">cfgContent <span class="property-type">string</span></dt>
+    <dd><b>CFG source only:</b> raw contents of a STEP 7 .cfg file to parse at runtime (overrides the preloaded file)</dd>
   </dl>
-  <h3>Outputs</h3>
+  <h3>Outputs (live source)</h3>
   <dl class="message-properties">
     <dt>payload.blocks <span class="property-type">array</span></dt>
     <dd>List of discovered blocks with type, number, and size</dd>
@@ -106,22 +221,22 @@
     <dt class="optional">payload.cpuInfo <span class="property-type">object</span></dt>
     <dd>CPU information (snap7 backend only)</dd>
   </dl>
+  <h3>Outputs (CFG source)</h3>
+  <dl class="message-properties">
+    <dt>payload.station <span class="property-type">object</span></dt>
+    <dd>Station type and name (e.g. <code>{type:"S7300",name:"Product1Production"}</code>)</dd>
+    <dt>payload.modules <span class="property-type">array</span></dt>
+    <dd>All modules found — CPU, CPs, DP couplers, local + remote I/O slots, with their order number, address range and symbols</dd>
+    <dt>payload.tags <span class="property-type">array</span></dt>
+    <dd>Flat, denormalised tag list (<code>{name, address, dataType, comment, source}</code>) ready to feed into an <code>s7-read</code> node</dd>
+  </dl>
   <h3>Details</h3>
-  <p>Send any message to start browsing. Progress is shown in the node status.</p>
-  <h4>Scope</h4>
-  <p>Select which memory areas to scan:</p>
-  <ul>
-    <li><b>Data Blocks (DB):</b> Scans for data blocks (default: enabled)</li>
-    <li><b>Merker (M):</b> Scan Merker/flag memory</li>
-    <li><b>Inputs (I):</b> Scan input image area</li>
-    <li><b>Outputs (Q):</b> Scan output image area</li>
-  </ul>
-  <h4>Backend Differences</h4>
+  <h4>Source: Live PLC</h4>
+  <p>Online discovery via the connected PLC. Note that snap7/S7comm does not expose I/O modules behind Profibus or Profinet couplers — only the CPU's own rack is visible.</p>
   <ul>
     <li><b>snap7:</b> Uses native block listing API (fast, accurate)</li>
     <li><b>nodes7:</b> Probe-based discovery with rate limiting (slower, max DB number configurable)</li>
   </ul>
-  <h4>Max DB Number</h4>
-  <p>For nodes7 backend only: the highest DB number to probe. Default: 999.
-  Lower values speed up the scan.</p>
+  <h4>Source: STEP 7 .cfg export</h4>
+  <p>Reads the full hardware layout exported from SIMATIC Manager via <em>Station → Export…</em> — including remote I/O behind Profibus/Profinet couplers. This covers the case where <em>Live</em> cannot see distributed modules. Upload the file in the node editor; the extracted tag list is cached on the node and emitted whenever the node receives a message.</p>
 </script>

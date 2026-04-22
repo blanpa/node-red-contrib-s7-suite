@@ -49,8 +49,8 @@
         });
       }
 
-      // CSV/Excel import
-      var fileInput = $('<input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none;">');
+      // CSV/Excel/CFG/TIA-XML import
+      var fileInput = $('<input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.cfg,.xml" style="display:none;">');
       $('body').append(fileInput);
 
       $('#s7r-import-btn').on('click', function () {
@@ -62,6 +62,89 @@
         if (!file) return;
         var name = (file.name || '').toLowerCase();
         var isExcel = /\.(xlsx|xls|xlsm|xlsb|ods)$/i.test(name);
+        var isCfg = /\.cfg$/i.test(name);
+        var isXml = /\.xml$/i.test(name);
+
+        if (isXml) {
+          var xmlReader = new FileReader();
+          xmlReader.onload = function (e) {
+            try {
+              $.ajax({
+                url: 's7-suite/tia-xml-import',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ content: e.target.result }),
+                success: function (result) {
+                  var tags = (result && result.tags) || [];
+                  var usable = tags.filter(function (t) { return t.address; });
+                  if (usable.length === 0) {
+                    RED.notify('No addressed tags found in "' + file.name + '". User constants are skipped (no address).', 'warning');
+                  } else {
+                    usable.forEach(function (t) {
+                      addrList.editableList('addItem', { address: t.address, label: t.name });
+                    });
+                    var tableLabel = (result.tables || []).length > 0
+                      ? ' (' + result.tables.length + ' table' + (result.tables.length > 1 ? 's' : '') + ')'
+                      : '';
+                    RED.notify('Imported ' + usable.length + ' tag(s) from "' + file.name + '"' + tableLabel + '.', 'success');
+                  }
+                },
+                error: function (xhr) {
+                  var msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Server-side parse failed';
+                  RED.notify('Failed to import TIA XML: ' + msg, 'error');
+                }
+              });
+            } catch (parseErr) {
+              RED.notify('Failed to read XML file: ' + parseErr.message, 'error');
+            }
+            fileInput.val('');
+          };
+          xmlReader.readAsText(file, 'utf-8');
+          return;
+        }
+
+        if (isCfg) {
+          var cfgReader = new FileReader();
+          cfgReader.onload = function (e) {
+            try {
+              // STEP 7 cfg exports are latin1; decode accordingly to preserve umlauts.
+              var buf = new Uint8Array(e.target.result);
+              var text;
+              try {
+                text = new TextDecoder('windows-1252').decode(buf);
+              } catch (_decErr) {
+                text = new TextDecoder('iso-8859-15').decode(buf);
+              }
+              $.ajax({
+                url: 's7-suite/cfg-import',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ content: text }),
+                success: function (result) {
+                  var tags = (result && result.tags) || [];
+                  if (tags.length === 0) {
+                    RED.notify('No symbols found in "' + file.name + '". Make sure SYMBOLs are included in the STEP 7 export.', 'warning');
+                  } else {
+                    tags.forEach(function (t) {
+                      addrList.editableList('addItem', { address: t.address, label: t.name });
+                    });
+                    var stationLabel = result.station ? (' (' + result.station.name + ')') : '';
+                    RED.notify('Imported ' + tags.length + ' tag(s) from "' + file.name + '"' + stationLabel + '.', 'success');
+                  }
+                },
+                error: function (xhr) {
+                  var msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Server-side parse failed';
+                  RED.notify('Failed to import cfg: ' + msg, 'error');
+                }
+              });
+            } catch (parseErr) {
+              RED.notify('Failed to read cfg file: ' + parseErr.message, 'error');
+            }
+            fileInput.val('');
+          };
+          cfgReader.readAsArrayBuffer(file);
+          return;
+        }
 
         if (isExcel) {
           loadSheetJS(function (err, XLSX) {
@@ -352,7 +435,7 @@
       <div style="display:inline-block;width:70%;">
         <div style="margin-bottom:4px;">
           <button type="button" id="s7r-browse-btn" class="red-ui-button red-ui-button-small" title="Browse PLC addresses"><i class="fa fa-search"></i> Browse</button>
-          <button type="button" id="s7r-import-btn" class="red-ui-button red-ui-button-small" title="Import CSV or Excel tag list (TIA Portal, Step 7)"><i class="fa fa-upload"></i> Import CSV/Excel</button>
+          <button type="button" id="s7r-import-btn" class="red-ui-button red-ui-button-small" title="Import tag list from CSV, Excel, STEP 7 .cfg hardware export, or TIA Portal .xml tag-table export"><i class="fa fa-upload"></i> Import CSV/Excel/CFG/XML</button>
         </div>
         <ol id="s7r-address-list"></ol>
       </div>
@@ -421,7 +504,9 @@
     <dt>Single value</dt>
     <dd>Reads one address and returns the scalar value.</dd>
     <dt>Object</dt>
-    <dd>Reads one or more addresses and returns an object. Keys are the label (if set) or address. Use <b>Import CSV/Excel</b> to bulk-import tag lists from TIA Portal (.xlsx) or Step 7 symbol exports (.csv/.tsv). The importer auto-detects column names (<code>name</code>/<code>symbol</code>/<code>tag</code> and <code>address</code>) and supports tab, semicolon and comma separators. IEC-style addresses with <code>%</code> prefix are converted automatically.</dd>
+    <dd>Reads one or more addresses and returns an object. Keys are the label (if set) or address. Use <b>Import CSV/Excel/CFG/XML</b> to bulk-import tag lists from TIA Portal (.xlsx or tag-table .xml), Step 7 symbol exports (.csv/.tsv), or STEP 7 V5 hardware configuration exports (.cfg). The CSV importer auto-detects column names (<code>name</code>/<code>symbol</code>/<code>tag</code> and <code>address</code>) and supports tab, semicolon and comma separators. IEC-style addresses with <code>%</code> prefix are converted automatically.<br>
+    <b>.cfg import</b> reads the full hardware config exported from SIMATIC Manager via <em>Station → Export…</em> and extracts all symbolic I/O — including modules behind Profibus/Profinet couplers that a live browse cannot discover. Digital inputs/outputs become <code>I0.3</code>/<code>Q0.3</code> addresses, analog channels become <code>IW272</code>/<code>QW272</code>.<br>
+    <b>TIA Portal .xml import</b> reads a PLC tag-table exported from TIA Portal (V13+) via <em>PLC tags → &lt;table&gt; → Export</em>. Multilingual comments prefer <code>de-DE</code>, then <code>en-US</code>. User constants (no address) are skipped.</dd>
     <dt>Raw Buffer</dt>
     <dd>Reads N bytes and returns a Node.js Buffer. Address format: <code>DB1,BYTE0.0.100</code> (100 bytes from offset 0). Useful for JSON strings in DBs or custom binary parsing.</dd>
     <dt>Struct (schema)</dt>
