@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.4] - 2026-04-22
+
+### Added
+- **Offline CFG import**: New `cfg-parser` and `tia-xml-parser` modules parse STEP 7 `.cfg` files (and embedded TIA Portal XML) for fully offline tag discovery — no live PLC connection required
+- **s7-browse offline source**: Browse dialog now offers a `cfg` source next to `live`, with dynamic UI updates and label rendering for cached configurations
+- **s7-config CFG upload endpoint**: New HTTP endpoint accepts `.cfg` uploads, with structured error handling and response payload
+- **s7-read CFG-driven tag picker**: Select tags from an imported CFG without typing addresses manually
+- **Repository metadata**: Added `repository`, `bugs` and `homepage` to `package.json` so npm shows the GitHub link, issue tracker and README
+- **`test-assets/` folder**: Repository folder for external S7 test files (tag lists, flows, PLC sources, captures, datasheets); excluded from npm tarball and Docker image
+- **Sample CFG**: `test-assets/prod.cfg` (4 436 lines) — real production STEP 7 configuration to exercise the offline CFG-import path
+
+### Changed
+- **`.dockerignore`**: Added `test-assets/` and `misc/` so heavy assets stay out of the Docker build context
+
+### Tested
+- New unit tests for `cfg-parser`, `tia-xml-parser`, and the CFG-import code paths in `s7-browse` and `s7-config`
+- All 401+ existing tests still pass
+
 ## [0.0.3] - 2026-04-17
 
 ### Added

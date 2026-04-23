@@ -25,13 +25,15 @@ s7-suite is a TypeScript-based Node-RED package for communicating with Siemens S
 
 **Bulk tag import** — Import full PLC tag lists from TIA Portal (`.xlsx`) or Step 7 symbol exports (`.csv`/`.tsv`) into the read node with one click. Auto-detects column names (`name`/`symbol`/`tag` and `address`) and separators (tab/semicolon/comma). Imported tags get human-readable labels used as object keys in the output.
 
+**Offline CFG import** — Upload a STEP 7 `.cfg` file (or embedded TIA Portal XML) to discover tags and pick addresses **without a live PLC connection**. Useful for engineering offline, reviewing code, or demoing flows. The browse dialog can switch between `live` and `cfg` source on the fly.
+
 ## Features
 
 - **s7-config** — Connection configuration with backend selection and auto-reconnect
 - **s7-read** — Read PLC data in multiple output modes: single value, combined object, raw buffer, struct, or bit array
 - **s7-write** — Write data to PLC memory areas with dynamic address via `msg.topic`
 - **s7-trigger** — Polling with edge detection and deadband filtering
-- **s7-browse** — Discover PLC data blocks with category filtering and search
+- **s7-browse** — Discover PLC data blocks with category filtering and search; supports both live PLC and offline `.cfg` import
 - **s7-control** — CPU control actions: Start, Stop, Cold Start (snap7 backend only)
 
 ### Supported PLCs
@@ -112,6 +114,20 @@ Requires the **snap7** backend. Send a message to execute the configured action,
 **Excel import does nothing** — XLSX parsing requires the SheetJS library, which is loaded on demand from a public CDN. If your Node-RED editor runs in an air-gapped environment, export your tag list as `.csv` from Excel/TIA Portal instead.
 
 **Remote I/O via Profibus/Profinet not browsable** — The browse node scans local rack I/O (areas I/Q, M, DB, C, T) and PLC blocks. Distributed I/O addresses on remote stations (Profibus DP couplers, Profinet IO) are reachable for read/write using the standard `IB`/`IW`/`ID`/`QB`/`QW`/`QD` syntax with the absolute peripheral address, but they will not appear in the browse results since they are not enumerable through the standard S7 protocol.
+
+**Offline browsing without a PLC** — Switch the browse dialog source from `live` to `cfg` and upload a STEP 7 `.cfg` export of your hardware configuration. Tags from the cfg are then available in the address picker just like live blocks. Sample file: [`test-assets/prod.cfg`](test-assets/prod.cfg).
+
+## Test Assets
+
+The [`test-assets/`](test-assets/) folder in the repo contains shared test material for contributors and bug reproductions:
+
+- `tag-lists/` — sample CSV/Excel tag exports for the bulk-import feature
+- `flows/` — reproducible Node-RED flows that exercise specific scenarios
+- `plc-programs/` — STEP 7 / TIA Portal source code that produced the test data
+- `captures/` — Wireshark `.pcap`s with the S7Comm dissector
+- `docs/` — datasheets, screenshots, vendor manuals
+
+This folder is **not shipped** with the npm package or Docker image. See [`test-assets/README.md`](test-assets/README.md) for conventions when contributing files.
 
 ## Installation
 
