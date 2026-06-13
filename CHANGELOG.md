@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - All `/s7-suite/*` admin endpoints now require editor permissions via `RED.auth.needsPermission` (`s7.read` for status/browse, `s7.write` for cfg/TIA-XML imports) when Node-RED authentication is enabled
+- **Dependency audit**: bumped the `node-red` devDependency from `^3.1.0` to `^4.1.11`, clearing 22 of the 25 reported advisories (all dev-only — the runtime dependencies `nodes7`/`node-snap7` had 0 vulnerabilities and the published tarball never bundled these packages). The remaining 3 advisories live inside the `npm` CLI that `@node-red/registry` bundles and cannot be overridden; they are dev-only and not exercised by the build or tests
 
 ### Changed
 - `package.json` `main` now resolves to a real module (`dist/nodes/index.js` re-exporting the shared types) instead of a non-existent file
