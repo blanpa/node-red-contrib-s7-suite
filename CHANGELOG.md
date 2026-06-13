@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **s7-config validation after redeploy** (#12): the Node-RED editor delivers numeric fields (rack, slot, port, timeouts) as strings after editing a config node, which made validation fail with `Invalid S7 config: invalid rack: 0 (expected 0-7)` and blocked the connection. All numeric config fields are now coerced before validation
+- **s7-trigger no longer crashes on an invalid address**: a malformed address now sets a red `invalid address` node status instead of throwing during node construction; interval and deadband are coerced from editor strings as well
+- **ConnectionManager request-timeout timer leak**: the per-request timeout timer is now cleared once a request settles instead of lingering for the full timeout duration
+- **ConnectionManager reconnect race**: calling `disconnect()` while a reconnect attempt was pending or in flight could re-establish (and leak) a PLC connection afterwards; reconnects now stop cleanly after a manual disconnect
+
+### Security
+- All `/s7-suite/*` admin endpoints now require editor permissions via `RED.auth.needsPermission` (`s7.read` for status/browse, `s7.write` for cfg/TIA-XML imports) when Node-RED authentication is enabled
+
+### Changed
+- `package.json` `main` now resolves to a real module (`dist/nodes/index.js` re-exporting the shared types) instead of a non-existent file
+
 ## [0.0.4] - 2026-04-22
 
 ### Added

@@ -31,19 +31,29 @@ export = function (RED: NodeAPI): void {
     }
 
     const addresses = splitAddresses(config.address);
-    const items: S7ReadItem[] = addresses.map((a, i) => {
-      const parsed = parseAddress(a);
-      return {
-        name: `item_${i}`,
-        address: parsed,
-        nodes7Address: toNodes7Address(parsed),
-      };
-    });
+    let items: S7ReadItem[];
+    try {
+      items = addresses.map((a, i) => {
+        const parsed = parseAddress(a);
+        return {
+          name: `item_${i}`,
+          address: parsed,
+          nodes7Address: toNodes7Address(parsed),
+        };
+      });
+    } catch (err) {
+      this.status({ fill: 'red', shape: 'ring', text: 'invalid address' });
+      this.error(`Invalid address: ${err instanceof Error ? err.message : String(err)}`);
+      serverNode.deregisterChildNode(this);
+      return;
+    }
 
+    // Editor delivers <input type="number"> values as strings - coerce them.
+    const configuredInterval = Number(config.interval) || 1000;
     const poller = new Poller({
-      interval: config.interval || 1000,
+      interval: configuredInterval,
       edgeMode: config.edgeMode || 'any',
-      deadband: config.deadband || 0,
+      deadband: Number(config.deadband) || 0,
     });
 
     for (const item of items) {
@@ -75,7 +85,7 @@ export = function (RED: NodeAPI): void {
       this.error(err.message);
     });
 
-    let currentInterval = config.interval || 1000;
+    let currentInterval = configuredInterval;
     const updateStatus = ({ newState }: { newState: string }) => {
       this.status(
         statusForState(newState, { connectedText: () => `polling ${currentInterval}ms` }),

@@ -19,6 +19,7 @@ export class ConnectionManager extends EventEmitter {
   private queue: QueueEntry[] = [];
   private processing = false;
   private maxQueueSize = 100;
+  private manualDisconnect = false;
 
   constructor(backend: IS7Backend, config: S7ConnectionConfig, maxQueueSize = 100) {
     super();
@@ -38,6 +39,7 @@ export class ConnectionManager extends EventEmitter {
   async connect(): Promise<void> {
     if (this.state === 'connected' || this.state === 'connecting') return;
 
+    this.manualDisconnect = false;
     this.setState('connecting');
 
     try {
@@ -53,6 +55,7 @@ export class ConnectionManager extends EventEmitter {
 
   /** Disconnects from the PLC, cancelling any pending reconnect and draining the queue. */
   async disconnect(): Promise<void> {
+    this.manualDisconnect = true;
     this.clearReconnectTimer();
     this.rejectPendingQueue();
 
@@ -105,12 +108,13 @@ export class ConnectionManager extends EventEmitter {
     while (this.queue.length > 0) {
       const entry = this.queue.shift();
       if (!entry) break;
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       try {
         const timeoutMs = this.config.requestTimeout ?? 3000;
         const result = await Promise.race([
           entry.execute(),
           new Promise((_resolve, reject) => {
-            setTimeout(() => reject(new S7Error(S7ErrorCode.REQUEST_TIMEOUT, 'Request timed out')), timeoutMs);
+            timeoutHandle = setTimeout(() => reject(new S7Error(S7ErrorCode.REQUEST_TIMEOUT, 'Request timed out')), timeoutMs);
           }),
         ]);
         entry.resolve(result);
@@ -120,6 +124,8 @@ export class ConnectionManager extends EventEmitter {
           this.handleConnectionLoss();
           break;
         }
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
       }
     }
 
@@ -133,12 +139,20 @@ export class ConnectionManager extends EventEmitter {
   }
 
   private scheduleReconnect(): void {
+    if (this.manualDisconnect) return;
     this.clearReconnectTimer();
 
     this.reconnectTimer = setTimeout(async () => {
+      if (this.manualDisconnect) return;
       try {
         this.setState('connecting');
         await this.backend.connect(this.config);
+        if (this.manualDisconnect) {
+          // disconnect() was called while the reconnect attempt was in flight
+          await this.backend.disconnect();
+          this.setState('disconnected');
+          return;
+        }
         this.setState('connected');
         this.reconnectDelay = this.config.reconnectInterval ?? 1000;
       } catch {

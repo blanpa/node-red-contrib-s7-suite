@@ -124,7 +124,7 @@ export = function (RED: NodeAPI): void {
           result = await browseProbe(
             serverNode.connectionManager,
             scope,
-            config.maxDbNumber || 999,
+            Number(config.maxDbNumber) || 999,
             (progress) => {
               this.status({
                 fill: 'blue',

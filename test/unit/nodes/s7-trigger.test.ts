@@ -115,6 +115,55 @@ describe('s7-trigger node', () => {
     });
   });
 
+  describe('invalid address', () => {
+    it('sets error status instead of throwing when the address cannot be parsed', () => {
+      const serverNode = createServerNode();
+      mockRED.nodes.getNode.mockReturnValue(serverNode);
+      const node = createNodeContext();
+
+      expect(() => {
+        constructorFn.call(node, {
+          id: 'trigger-bad-addr',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'NOT_AN_ADDRESS',
+          interval: 1000,
+          edgeMode: 'any',
+          deadband: 0,
+        });
+      }).not.toThrow();
+
+      expect(node.status).toHaveBeenCalledWith({
+        fill: 'red', shape: 'ring', text: 'invalid address',
+      });
+      expect(node.error).toHaveBeenCalledWith(expect.stringContaining('Invalid address'));
+      expect(serverNode.deregisterChildNode).toHaveBeenCalled();
+    });
+
+    it('coerces interval and deadband delivered as strings by the editor', () => {
+      const serverNode = createServerNode();
+      mockRED.nodes.getNode.mockReturnValue(serverNode);
+      const node = createNodeContext();
+
+      expect(() => {
+        constructorFn.call(node, {
+          id: 'trigger-str-num',
+          type: 's7-trigger',
+          server: 'config1',
+          address: 'DB1,REAL0',
+          interval: '500',
+          edgeMode: 'any',
+          deadband: '0.5',
+        });
+      }).not.toThrow();
+
+      expect(node.status).not.toHaveBeenCalledWith(
+        expect.objectContaining({ fill: 'red' }),
+      );
+      node.emit('close', jest.fn());
+    });
+  });
+
   describe('with valid server config', () => {
     let serverNode: ReturnType<typeof createServerNode>;
 

@@ -126,6 +126,32 @@ describe('ConnectionManager', () => {
     expect(backend.connectCalls.length).toBe(1);
   });
 
+  it('stops reconnecting when disconnect() is called while a reconnect is pending', async () => {
+    backend.shouldFailConnect = true;
+
+    try {
+      await manager.connect();
+    } catch {
+      // expected - schedules a reconnect
+    }
+
+    await manager.disconnect();
+    backend.shouldFailConnect = false;
+
+    // Wait past the reconnect interval: no reconnect may happen
+    await new Promise((r) => setTimeout(r, 300));
+    expect(manager.getState()).toBe('disconnected');
+    expect(backend.connected).toBe(false);
+  });
+
+  it('can reconnect normally after a manual disconnect', async () => {
+    await manager.connect();
+    await manager.disconnect();
+
+    await manager.connect();
+    expect(manager.getState()).toBe('connected');
+  });
+
   it('schedules reconnect on connection failure', async () => {
     backend.shouldFailConnect = true;
 
