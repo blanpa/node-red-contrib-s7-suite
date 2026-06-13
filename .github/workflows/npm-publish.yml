@@ -2,8 +2,12 @@ name: Publish to npm
 
 # Veröffentlicht das Paket auf npm via Trusted Publishing (OIDC).
 # Es wird KEIN NPM_TOKEN benötigt – npm vertraut diesem Workflow direkt.
-# Auslöser: ein veröffentlichtes GitHub Release ODER manueller Start.
+# Auslöser: Push eines Version-Tags (z. B. v0.0.5), ein veröffentlichtes
+# GitHub Release ODER manueller Start.
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
   workflow_dispatch:
