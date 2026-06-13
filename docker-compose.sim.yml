@@ -1,0 +1,120 @@
+# Simulation deployment: 6 S7-server simulators + Node-RED with preloaded flows.
+#
+# Start:    docker compose -f docker-compose.sim.yml up --build
+# Stop:     docker compose -f docker-compose.sim.yml down
+# Logs:     docker compose -f docker-compose.sim.yml logs -f s7-1200-sim
+#
+# Node-RED UI:   http://localhost:1885
+# Flow file:     examples/sim-deployment.json (auto-loaded on first start)
+#
+# Each PLC simulator is reachable INSIDE the docker network at <service>:102
+# and ALSO exposed on the host at 1102..1107 for direct testing (e.g. with snap7
+# clients running outside Docker). Node-RED connects via service name.
+
+services:
+  s7-1200-sim:
+    build: ./sim-server
+    container_name: s7-1200-sim
+    environment:
+      - PLC_TYPE=S7-1200
+      - DB_LIST=1:1024,2:512
+    ports:
+      - "1102:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  s7-1500-sim:
+    build: ./sim-server
+    container_name: s7-1500-sim
+    environment:
+      - PLC_TYPE=S7-1500
+      - DB_LIST=1:1024,10:2048
+    ports:
+      - "1103:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  s7-300-sim:
+    build: ./sim-server
+    container_name: s7-300-sim
+    environment:
+      - PLC_TYPE=S7-300
+      - DB_LIST=1:1024
+    ports:
+      - "1104:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  s7-400-sim:
+    build: ./sim-server
+    container_name: s7-400-sim
+    environment:
+      - PLC_TYPE=S7-400
+      - DB_LIST=1:1024,100:4096
+    ports:
+      - "1105:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  s7-200-sim:
+    build: ./sim-server
+    container_name: s7-200-sim
+    environment:
+      - PLC_TYPE=S7-200
+      - DB_LIST=1:512
+    ports:
+      - "1106:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  s7-logo-sim:
+    build: ./sim-server
+    container_name: s7-logo-sim
+    environment:
+      - PLC_TYPE=LOGO
+      - DB_LIST=1:256
+    ports:
+      - "1107:102"
+    networks: [s7sim]
+    restart: unless-stopped
+
+  node-red:
+    image: nodered/node-red:4.1.7-22-minimal
+    container_name: node-red-sim-deployment
+    depends_on:
+      - s7-1200-sim
+      - s7-1500-sim
+      - s7-300-sim
+      - s7-400-sim
+      - s7-200-sim
+      - s7-logo-sim
+    ports:
+      - "1885:1880"
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - node-red-sim-data:/data
+      - ./:/opt/s7-suite:ro
+    networks: [s7sim]
+    entrypoint: >
+      sh -c "
+        cp -r /opt/s7-suite /tmp/s7-suite-build &&
+        cd /tmp/s7-suite-build &&
+        npm install --no-audit --no-fund &&
+        npm run build &&
+        npm pack --pack-destination /tmp &&
+        cd /usr/src/node-red &&
+        npm install /tmp/node-red-contrib-s7-suite-*.tgz --no-audit --no-fund &&
+        if [ ! -f /data/flows.json ]; then
+          cp /tmp/s7-suite-build/examples/sim-deployment.json /data/flows.json;
+        fi;
+        npm start -- --userDir /data
+      "
+    restart: unless-stopped
+
+networks:
+  s7sim:
+    driver: bridge
+
+volumes:
+  node-red-sim-data:

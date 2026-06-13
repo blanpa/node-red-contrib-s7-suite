@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-06-13
+
+### Added
+- **npm Trusted Publishing pipeline** (`.github/workflows/npm-publish.yml`): the package is now published to npm via GitHub Actions using OIDC Trusted Publishing — no `NPM_TOKEN` secret required. The workflow runs on a published GitHub Release (or manual dispatch), lints, builds and tests, then runs `npm publish` with automatically generated build provenance (the npm ✓ "Built and signed on GitHub Actions" badge). Requires the Trusted Publisher to be configured once on npmjs.com (org `blanpa`, repo `node-red-contrib-s7-suite`, workflow `npm-publish.yml`)
+- **Sim-server dev environment** (`sim-server/`, `docker-compose.sim.yml`, `examples/sim-deployment.json`): a fully offline, multi-PLC simulation stack for development and CI — six S7-server simulators (S7-1200/1500/300/400 etc.) plus a Node-RED instance with the S7 nodes and a preloaded demo flow. One command (`docker compose -f docker-compose.sim.yml up --build`) brings up the whole environment; each simulator is reachable on the host at ports `1102..1107` for direct snap7 testing and via service name inside the Docker network. Dev-only — none of these files ship in the npm tarball
+
 ### Fixed
 - **s7-config validation after redeploy** (#12): the Node-RED editor delivers numeric fields (rack, slot, port, timeouts) as strings after editing a config node, which made validation fail with `Invalid S7 config: invalid rack: 0 (expected 0-7)` and blocked the connection. All numeric config fields are now coerced before validation
 - **s7-trigger no longer crashes on an invalid address**: a malformed address now sets a red `invalid address` node status instead of throwing during node construction; interval and deadband are coerced from editor strings as well

@@ -1,0 +1,1368 @@
+[
+  {
+    "id": "tab-sim",
+    "type": "tab",
+    "label": "S7 Sim Deployment",
+    "disabled": false,
+    "info": "# S7 Simulation Deployment\n\nOne group per simulated PLC variant. Each container runs a node-snap7 server seeded with DB1.\n\n## Live signals in DB1 (per simulator)\n- `DB1,REAL0` — temperature (drifts around 23.5)\n- `DB1,INT4` — counter (increments per second)\n- `DB1,BOOL6.0` — heartbeat (toggles every 5s)\n- `DB1,DINT8` — 123456 (static)\n- `DB1,STRING12` — \"S7-SIM\" (static)\n\n## Hosts (from inside Docker network)\n- s7-1200-sim:102, s7-1500-sim:102, s7-300-sim:102, s7-400-sim:102, s7-200-sim:102, s7-logo-sim:102\n\n## From host machine\n- localhost:1102..1107 — same mapping order\n"
+  },
+  {
+    "id": "cfg-s7-1200",
+    "type": "s7-config",
+    "name": "S7-1200 Simulator",
+    "host": "s7-1200-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 1,
+    "plcType": "S7-1200",
+    "backend": "snap7",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cfg-s7-1500",
+    "type": "s7-config",
+    "name": "S7-1500 Simulator",
+    "host": "s7-1500-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 1,
+    "plcType": "S7-1500",
+    "backend": "snap7",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cfg-s7-300",
+    "type": "s7-config",
+    "name": "S7-300 Simulator",
+    "host": "s7-300-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 2,
+    "plcType": "S7-300",
+    "backend": "snap7",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cfg-s7-400",
+    "type": "s7-config",
+    "name": "S7-400 Simulator",
+    "host": "s7-400-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 3,
+    "plcType": "S7-400",
+    "backend": "snap7",
+    "localTSAP": "",
+    "remoteTSAP": "",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cfg-s7-200",
+    "type": "s7-config",
+    "name": "S7-200 (TSAP) Simulator",
+    "host": "s7-200-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 1,
+    "plcType": "S7-200",
+    "backend": "nodes7",
+    "localTSAP": "1000",
+    "remoteTSAP": "1000",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cfg-logo",
+    "type": "s7-config",
+    "name": "LOGO (TSAP) Simulator",
+    "host": "s7-logo-sim",
+    "port": 102,
+    "rack": 0,
+    "slot": 2,
+    "plcType": "LOGO",
+    "backend": "nodes7",
+    "localTSAP": "0100",
+    "remoteTSAP": "0200",
+    "connectionTimeout": 5000,
+    "requestTimeout": 3000,
+    "reconnectInterval": 2000,
+    "maxReconnectInterval": 30000
+  },
+  {
+    "id": "cmt-header",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "=== S7 Simulation Deployment — 6 PLC variants ===",
+    "info": "Each simulator container runs node-snap7 S7Server seeded with DB1.\nUse the inject nodes to read live signals, write a REAL, and browse DBs.",
+    "x": 280,
+    "y": 30
+  },
+  {
+    "id": "cmt-s7-1200",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- S7-1200  (s7-1200-sim:102 · rack=0 · slot=1 · backend=snap7) ---",
+    "info": "",
+    "x": 280,
+    "y": 80
+  },
+  {
+    "id": "inj-read-s7-1200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 120,
+    "wires": [
+      [
+        "read-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7-1200",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-s7-1200",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 120,
+    "wires": [
+      [
+        "dbg-read-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-s7-1200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1200: REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "inj-write-s7-1200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 180,
+    "wires": [
+      [
+        "write-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7-1200",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-s7-1200",
+    "address": "",
+    "x": 410,
+    "y": 180,
+    "wires": [
+      [
+        "dbg-write-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-s7-1200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1200: Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-s7-1200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 240,
+    "wires": [
+      [
+        "browse-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "browse-s7-1200",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-s7-1200",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 240,
+    "wires": [
+      [
+        "dbg-browse-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-s7-1200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1200: Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "trig-s7-1200",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-s7-1200",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 300,
+    "wires": [
+      [
+        "dbg-trig-s7-1200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-s7-1200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1200: Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "cmt-s7-1500",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- S7-1500  (s7-1500-sim:102 · rack=0 · slot=1 · backend=snap7) ---",
+    "info": "",
+    "x": 280,
+    "y": 360
+  },
+  {
+    "id": "inj-read-s7-1500",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 400,
+    "wires": [
+      [
+        "read-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7-1500",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-s7-1500",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 400,
+    "wires": [
+      [
+        "dbg-read-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-s7-1500",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1500: REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "inj-write-s7-1500",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 460,
+    "wires": [
+      [
+        "write-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7-1500",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-s7-1500",
+    "address": "",
+    "x": 410,
+    "y": 460,
+    "wires": [
+      [
+        "dbg-write-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-s7-1500",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1500: Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 460,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-s7-1500",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 520,
+    "wires": [
+      [
+        "browse-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "browse-s7-1500",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-s7-1500",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 520,
+    "wires": [
+      [
+        "dbg-browse-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-s7-1500",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1500: Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 520,
+    "wires": []
+  },
+  {
+    "id": "trig-s7-1500",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-s7-1500",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 580,
+    "wires": [
+      [
+        "dbg-trig-s7-1500"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-s7-1500",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-1500: Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "cmt-s7-300",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- S7-300  (s7-300-sim:102 · rack=0 · slot=2 · backend=snap7) ---",
+    "info": "",
+    "x": 280,
+    "y": 640
+  },
+  {
+    "id": "inj-read-s7-300",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 680,
+    "wires": [
+      [
+        "read-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7-300",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-s7-300",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 680,
+    "wires": [
+      [
+        "dbg-read-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-s7-300",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-300: REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 680,
+    "wires": []
+  },
+  {
+    "id": "inj-write-s7-300",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 740,
+    "wires": [
+      [
+        "write-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7-300",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-s7-300",
+    "address": "",
+    "x": 410,
+    "y": 740,
+    "wires": [
+      [
+        "dbg-write-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-s7-300",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-300: Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 740,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-s7-300",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 800,
+    "wires": [
+      [
+        "browse-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "browse-s7-300",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-s7-300",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 800,
+    "wires": [
+      [
+        "dbg-browse-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-s7-300",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-300: Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 800,
+    "wires": []
+  },
+  {
+    "id": "trig-s7-300",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-s7-300",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 860,
+    "wires": [
+      [
+        "dbg-trig-s7-300"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-s7-300",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-300: Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 860,
+    "wires": []
+  },
+  {
+    "id": "cmt-s7-400",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- S7-400  (s7-400-sim:102 · rack=0 · slot=3 · backend=snap7) ---",
+    "info": "",
+    "x": 280,
+    "y": 920
+  },
+  {
+    "id": "inj-read-s7-400",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 960,
+    "wires": [
+      [
+        "read-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7-400",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-s7-400",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 960,
+    "wires": [
+      [
+        "dbg-read-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-s7-400",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-400: REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 960,
+    "wires": []
+  },
+  {
+    "id": "inj-write-s7-400",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 1020,
+    "wires": [
+      [
+        "write-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7-400",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-s7-400",
+    "address": "",
+    "x": 410,
+    "y": 1020,
+    "wires": [
+      [
+        "dbg-write-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-s7-400",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-400: Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 1020,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-s7-400",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 1080,
+    "wires": [
+      [
+        "browse-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "browse-s7-400",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-s7-400",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 1080,
+    "wires": [
+      [
+        "dbg-browse-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-s7-400",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-400: Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1080,
+    "wires": []
+  },
+  {
+    "id": "trig-s7-400",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-s7-400",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 1140,
+    "wires": [
+      [
+        "dbg-trig-s7-400"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-s7-400",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-400: Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1140,
+    "wires": []
+  },
+  {
+    "id": "cmt-s7-200",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- S7-200 (TSAP)  (s7-200-sim:102 · rack=0 · slot=1 · backend=nodes7) ---",
+    "info": "",
+    "x": 280,
+    "y": 1200
+  },
+  {
+    "id": "inj-read-s7-200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 1240,
+    "wires": [
+      [
+        "read-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "read-s7-200",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-s7-200",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 1240,
+    "wires": [
+      [
+        "dbg-read-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-s7-200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-200 (TSAP): REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1240,
+    "wires": []
+  },
+  {
+    "id": "inj-write-s7-200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 1300,
+    "wires": [
+      [
+        "write-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "write-s7-200",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-s7-200",
+    "address": "",
+    "x": 410,
+    "y": 1300,
+    "wires": [
+      [
+        "dbg-write-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-s7-200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-200 (TSAP): Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 1300,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-s7-200",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 1360,
+    "wires": [
+      [
+        "browse-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "browse-s7-200",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-s7-200",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 1360,
+    "wires": [
+      [
+        "dbg-browse-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-s7-200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-200 (TSAP): Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1360,
+    "wires": []
+  },
+  {
+    "id": "trig-s7-200",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-s7-200",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 1420,
+    "wires": [
+      [
+        "dbg-trig-s7-200"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-s7-200",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "S7-200 (TSAP): Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1420,
+    "wires": []
+  },
+  {
+    "id": "cmt-logo",
+    "type": "comment",
+    "z": "tab-sim",
+    "name": "--- LOGO (TSAP)  (s7-logo-sim:102 · rack=0 · slot=2 · backend=nodes7) ---",
+    "info": "",
+    "x": 280,
+    "y": 1480
+  },
+  {
+    "id": "inj-read-logo",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Read DB1,REAL0 (2s)",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL0"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "DB1,REAL0",
+    "x": 160,
+    "y": 1520,
+    "wires": [
+      [
+        "read-logo"
+      ]
+    ]
+  },
+  {
+    "id": "read-logo",
+    "type": "s7-read",
+    "z": "tab-sim",
+    "name": "Read REAL0",
+    "server": "cfg-logo",
+    "address": "",
+    "outputMode": "single",
+    "topic": "",
+    "x": 410,
+    "y": 1520,
+    "wires": [
+      [
+        "dbg-read-logo"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-read-logo",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "LOGO (TSAP): REAL0",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1520,
+    "wires": []
+  },
+  {
+    "id": "inj-write-logo",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Write DB1,REAL100 = 99.9",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str",
+        "v": "DB1,REAL100"
+      },
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "DB1,REAL100",
+    "payload": "99.9",
+    "payloadType": "num",
+    "x": 160,
+    "y": 1580,
+    "wires": [
+      [
+        "write-logo"
+      ]
+    ]
+  },
+  {
+    "id": "write-logo",
+    "type": "s7-write",
+    "z": "tab-sim",
+    "name": "Write REAL100",
+    "server": "cfg-logo",
+    "address": "",
+    "x": 410,
+    "y": 1580,
+    "wires": [
+      [
+        "dbg-write-logo"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-write-logo",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "LOGO (TSAP): Write ack",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "true",
+    "targetType": "full",
+    "x": 700,
+    "y": 1580,
+    "wires": []
+  },
+  {
+    "id": "inj-browse-logo",
+    "type": "inject",
+    "z": "tab-sim",
+    "name": "Browse DBs",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 1640,
+    "wires": [
+      [
+        "browse-logo"
+      ]
+    ]
+  },
+  {
+    "id": "browse-logo",
+    "type": "s7-browse",
+    "z": "tab-sim",
+    "name": "Browse",
+    "server": "cfg-logo",
+    "scopeDB": true,
+    "scopeM": true,
+    "scopeI": true,
+    "scopeQ": true,
+    "maxDbNumber": 50,
+    "x": 410,
+    "y": 1640,
+    "wires": [
+      [
+        "dbg-browse-logo"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-browse-logo",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "LOGO (TSAP): Browse result",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1640,
+    "wires": []
+  },
+  {
+    "id": "trig-logo",
+    "type": "s7-trigger",
+    "z": "tab-sim",
+    "name": "Poll DB1,INT4 (on change)",
+    "server": "cfg-logo",
+    "address": "DB1,INT4",
+    "interval": 1000,
+    "edgeMode": "any",
+    "deadband": 0,
+    "x": 410,
+    "y": 1700,
+    "wires": [
+      [
+        "dbg-trig-logo"
+      ]
+    ]
+  },
+  {
+    "id": "dbg-trig-logo",
+    "type": "debug",
+    "z": "tab-sim",
+    "name": "LOGO (TSAP): Counter",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 700,
+    "y": 1700,
+    "wires": []
+  }
+]

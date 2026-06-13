@@ -1,0 +1,47 @@
+name: Publish to npm
+
+# Veröffentlicht das Paket auf npm via Trusted Publishing (OIDC).
+# Es wird KEIN NPM_TOKEN benötigt – npm vertraut diesem Workflow direkt.
+# Auslöser: ein veröffentlichtes GitHub Release ODER manueller Start.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write # Pflicht für OIDC / Trusted Publishing + Provenance
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted Publishing benötigt npm >= 11.5.1
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      # Kein --provenance/Token nötig: Trusted Publishing erzeugt die
+      # Provenance automatisch über die OIDC-Identität dieses Workflows.
+      - name: Publish
+        run: npm publish --access public

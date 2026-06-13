@@ -1,0 +1,16 @@
+{
+  "name": "s7-sim-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Configurable snap7-based S7 PLC server simulator for testing node-red-contrib-s7-suite",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-snap7": "^1.0.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
