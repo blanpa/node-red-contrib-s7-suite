@@ -30,12 +30,17 @@ describe('s7-config node', () => {
       getNode: jest.fn(),
     },
     httpAdmin: {
-      get: jest.fn((path: string, handler: Function) => {
-        httpGetHandlers[path] = handler;
+      // Endpoints are registered as (path, needsPermission-middleware, handler);
+      // the handler is always the last argument.
+      get: jest.fn((path: string, ...args: Function[]) => {
+        httpGetHandlers[path] = args[args.length - 1];
       }),
-      post: jest.fn((path: string, handler: Function) => {
-        httpPostHandlers[path] = handler;
+      post: jest.fn((path: string, ...args: Function[]) => {
+        httpPostHandlers[path] = args[args.length - 1];
       }),
+    },
+    auth: {
+      needsPermission: jest.fn(() => (_req: unknown, _res: unknown, next: () => void) => next()),
     },
   };
 
@@ -52,12 +57,14 @@ describe('s7-config node', () => {
     expect(mockRED.nodes.registerType).toHaveBeenCalledWith('s7-config', expect.any(Function), { credentials: { password: { type: 'password' } } });
   });
 
-  it('registers HTTP admin endpoints', () => {
-    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/snap7-available', expect.any(Function));
-    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/plc-defaults', expect.any(Function));
-    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/connection-state/:id', expect.any(Function));
-    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/browse/:id', expect.any(Function));
-    expect(mockRED.httpAdmin.post).toHaveBeenCalledWith('/s7-suite/cfg-import', expect.any(Function));
+  it('registers HTTP admin endpoints with permission middleware', () => {
+    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/snap7-available', expect.any(Function), expect.any(Function));
+    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/plc-defaults', expect.any(Function), expect.any(Function));
+    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/connection-state/:id', expect.any(Function), expect.any(Function));
+    expect(mockRED.httpAdmin.get).toHaveBeenCalledWith('/s7-suite/browse/:id', expect.any(Function), expect.any(Function));
+    expect(mockRED.httpAdmin.post).toHaveBeenCalledWith('/s7-suite/cfg-import', expect.any(Function), expect.any(Function));
+    expect(mockRED.auth.needsPermission).toHaveBeenCalledWith('s7.read');
+    expect(mockRED.auth.needsPermission).toHaveBeenCalledWith('s7.write');
   });
 
   describe('/s7-suite/cfg-import', () => {
@@ -230,6 +237,70 @@ describe('s7-config node', () => {
 
       await new Promise(resolve => setTimeout(resolve, 10));
       expect(disconnectSpy).toHaveBeenCalled();
+    });
+
+    it('coerces numeric values delivered as strings by the editor (issue #12)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodeContext: any = Object.assign(new EventEmitter(), {
+        log: jest.fn(),
+        error: jest.fn(),
+        status: jest.fn(),
+      });
+
+      // After editing the config node in the Node-RED editor, all
+      // <input type="number"> fields arrive as strings.
+      constructorFn.call(nodeContext, {
+        id: 'config-str',
+        type: 's7-config',
+        name: 'test',
+        host: '192.168.1.100',
+        port: '102',
+        rack: '0',
+        slot: '2',
+        plcType: 'S7-300',
+        backend: 'nodes7',
+        connectionTimeout: '5000',
+        requestTimeout: '3000',
+        reconnectInterval: '1000',
+        maxReconnectInterval: '30000',
+      });
+
+      expect(nodeContext.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Invalid S7 config'),
+      );
+      expect(nodeContext.s7Config.port).toBe(102);
+      expect(nodeContext.s7Config.rack).toBe(0);
+      expect(nodeContext.s7Config.slot).toBe(2);
+      expect(nodeContext.s7Config.connectionTimeout).toBe(5000);
+      expect(nodeContext.s7Config.requestTimeout).toBe(3000);
+      expect(nodeContext.s7Config.reconnectInterval).toBe(1000);
+      expect(nodeContext.s7Config.maxReconnectInterval).toBe(30000);
+    });
+
+    it('falls back to the PLC default slot when slot is an empty string', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodeContext: any = Object.assign(new EventEmitter(), {
+        log: jest.fn(),
+        error: jest.fn(),
+        status: jest.fn(),
+      });
+
+      constructorFn.call(nodeContext, {
+        id: 'config-empty-slot',
+        type: 's7-config',
+        name: 'test',
+        host: '192.168.1.100',
+        port: '102',
+        rack: '0',
+        slot: '',
+        plcType: 'S7-400',
+        backend: 'nodes7',
+      });
+
+      expect(nodeContext.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Invalid S7 config'),
+      );
+      expect(nodeContext.s7Config.slot).toBe(3); // S7-400 default
     });
 
     it('parses TSAP values from hex strings', () => {

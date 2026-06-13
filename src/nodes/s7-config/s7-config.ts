@@ -39,22 +39,38 @@ export = function (RED: NodeAPI): void {
     };
 
     const plcType = config.plcType || 'S7-1200';
-    const slot = config.slot ?? PLC_DEFAULT_SLOTS[plcType];
+
+    // Node-RED's editor returns <input type="number"> values as strings,
+    // so coerce every numeric field before validation/use.
+    const toNum = (v: unknown, fallback: number): number => {
+      if (v === undefined || v === null || v === '') return fallback;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const toOptionalHex = (v: unknown): number | undefined => {
+      if (v === undefined || v === null || v === '') return undefined;
+      const n = parseInt(String(v), 16);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const slot = config.slot === undefined || config.slot === null || (config.slot as unknown) === ''
+      ? PLC_DEFAULT_SLOTS[plcType]
+      : toNum(config.slot, PLC_DEFAULT_SLOTS[plcType]);
 
     this.s7Config = {
       host: config.host || '192.168.0.1',
-      port: config.port || 102,
-      rack: config.rack ?? 0,
+      port: toNum(config.port, 102),
+      rack: toNum(config.rack, 0),
       slot,
       plcType,
       backend: config.backend || 'nodes7',
-      localTSAP: config.localTSAP ? parseInt(config.localTSAP, 16) : undefined,
-      remoteTSAP: config.remoteTSAP ? parseInt(config.remoteTSAP, 16) : undefined,
+      localTSAP: toOptionalHex(config.localTSAP),
+      remoteTSAP: toOptionalHex(config.remoteTSAP),
       password: (this as any).credentials?.password || undefined, // eslint-disable-line @typescript-eslint/no-explicit-any
-      connectionTimeout: config.connectionTimeout || 5000,
-      requestTimeout: config.requestTimeout || 3000,
-      reconnectInterval: config.reconnectInterval || 1000,
-      maxReconnectInterval: config.maxReconnectInterval || 30000,
+      connectionTimeout: toNum(config.connectionTimeout, 5000),
+      requestTimeout: toNum(config.requestTimeout, 3000),
+      reconnectInterval: toNum(config.reconnectInterval, 1000),
+      maxReconnectInterval: toNum(config.maxReconnectInterval, 30000),
     };
 
     const validationError = validateConfig(this.s7Config);
@@ -92,15 +108,15 @@ export = function (RED: NodeAPI): void {
     },
   });
 
-  RED.httpAdmin.get('/s7-suite/snap7-available', (_req, res) => {
+  RED.httpAdmin.get('/s7-suite/snap7-available', RED.auth.needsPermission('s7.read'), (_req, res) => {
     res.json({ available: isSnap7Available() });
   });
 
-  RED.httpAdmin.get('/s7-suite/plc-defaults', (_req, res) => {
+  RED.httpAdmin.get('/s7-suite/plc-defaults', RED.auth.needsPermission('s7.read'), (_req, res) => {
     res.json(PLC_DEFAULT_SLOTS);
   });
 
-  RED.httpAdmin.post('/s7-suite/cfg-import', (req, res) => {
+  RED.httpAdmin.post('/s7-suite/cfg-import', RED.auth.needsPermission('s7.write'), (req, res) => {
     const body = req.body as { content?: unknown } | undefined;
     const content = body && typeof body.content === 'string' ? body.content : null;
     if (!content) {
@@ -115,7 +131,7 @@ export = function (RED: NodeAPI): void {
     }
   });
 
-  RED.httpAdmin.post('/s7-suite/tia-xml-import', (req, res) => {
+  RED.httpAdmin.post('/s7-suite/tia-xml-import', RED.auth.needsPermission('s7.write'), (req, res) => {
     const body = req.body as { content?: unknown } | undefined;
     const content = body && typeof body.content === 'string' ? body.content : null;
     if (!content) {
@@ -130,8 +146,8 @@ export = function (RED: NodeAPI): void {
     }
   });
 
-  RED.httpAdmin.get('/s7-suite/connection-state/:id', (req, res) => {
-    const configNode = RED.nodes.getNode(req.params.id) as S7ConfigNode | null;
+  RED.httpAdmin.get('/s7-suite/connection-state/:id', RED.auth.needsPermission('s7.read'), (req, res) => {
+    const configNode = RED.nodes.getNode(String(req.params.id)) as S7ConfigNode | null;
     if (!configNode) {
       res.json({ state: 'unknown' });
       return;
@@ -140,8 +156,8 @@ export = function (RED: NodeAPI): void {
   });
 
   // Browse endpoint: returns address list from connected PLC
-  RED.httpAdmin.get('/s7-suite/browse/:id', async (req, res) => {
-    const configNode = RED.nodes.getNode(req.params.id) as S7ConfigNode | null;
+  RED.httpAdmin.get('/s7-suite/browse/:id', RED.auth.needsPermission('s7.read'), async (req, res) => {
+    const configNode = RED.nodes.getNode(String(req.params.id)) as S7ConfigNode | null;
     if (!configNode) {
       res.status(404).json({ error: 'Config node not found' });
       return;
