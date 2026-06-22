@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-06-22
+
+### Fixed
+- **Node icons not displayed**: the build copied `s7-suite.svg` to `dist/icons/icons/` (a double-nested path produced by `copyfiles -u 1`), where Node-RED never looks. For npm-installed modules Node-RED resolves icons from `<dir-of-node-js>/icons/`, so every node fell back to the default icon. A new `copy-icons` build step now places `s7-suite.svg` into each `dist/nodes/<node>/icons/` directory; verified end-to-end (all six icons served with HTTP 200)
+
+### Changed
+- **Palette category renamed `S7` → `S7 Suite`**: the five flow nodes (read/write/trigger/browse/control) now group under an `S7 Suite` section in the Node-RED palette
+
 ## [0.0.5] - 2026-06-13
 
 ### Added
