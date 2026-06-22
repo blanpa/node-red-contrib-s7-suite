@@ -50,6 +50,9 @@
   "dependencies": {
     "nodes7": "^0.3.0"
   },
+  "overrides": {
+    "ws@7.0.0 - 7.5.10": "7.5.11"
+  },
   "optionalDependencies": {
     "node-snap7": "^1.0.0"
   },
