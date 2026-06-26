@@ -23,6 +23,11 @@ export interface S7ConnectionConfig {
   requestTimeout?: number;
   reconnectInterval?: number;
   maxReconnectInterval?: number;
+  /**
+   * When true, enables verbose backend protocol logging (nodes7 trace output).
+   * Defaults to false so normal poll/read traffic is not logged to stdout.
+   */
+  debug?: boolean;
 }
 
 export const PLC_DEFAULT_SLOTS: Record<PlcType, number> = {

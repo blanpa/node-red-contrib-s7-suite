@@ -22,6 +22,7 @@ interface S7ConfigNodeDef extends NodeDef {
   requestTimeout: number;
   reconnectInterval: number;
   maxReconnectInterval: number;
+  debug?: boolean;
 }
 
 export = function (RED: NodeAPI): void {
@@ -71,6 +72,7 @@ export = function (RED: NodeAPI): void {
       requestTimeout: toNum(config.requestTimeout, 3000),
       reconnectInterval: toNum(config.reconnectInterval, 1000),
       maxReconnectInterval: toNum(config.maxReconnectInterval, 30000),
+      debug: config.debug === true,
     };
 
     const validationError = validateConfig(this.s7Config);

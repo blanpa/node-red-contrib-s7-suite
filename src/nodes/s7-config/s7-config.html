@@ -182,7 +182,8 @@
       connectionTimeout: { value: 5000, validate: RED.validators.number() },
       requestTimeout: { value: 3000, validate: RED.validators.number() },
       reconnectInterval: { value: 1000, validate: RED.validators.number() },
-      maxReconnectInterval: { value: 30000, validate: RED.validators.number() }
+      maxReconnectInterval: { value: 30000, validate: RED.validators.number() },
+      debug: { value: false }
     },
     credentials: {
       password: { type: 'password' }
@@ -313,6 +314,11 @@
     <label for="node-config-input-maxReconnectInterval"><i class="fa fa-refresh"></i> Max Reconnect (ms)</label>
     <input type="number" id="node-config-input-maxReconnectInterval" placeholder="30000">
   </div>
+  <div class="form-row">
+    <label for="node-config-input-debug" style="width:auto;"><i class="fa fa-bug"></i> Debug logging</label>
+    <input type="checkbox" id="node-config-input-debug" style="display:inline-block; width:auto; vertical-align:top;">
+    <span style="color:#888; font-size:0.85em;">Logs raw protocol traffic (nodes7) to stdout. Leave off for normal use.</span>
+  </div>
 </script>
 
 <script type="text/html" data-help-name="s7-config">
@@ -329,6 +335,10 @@
     <dd>S7-200, S7-300, S7-400, S7-1200, S7-1500, or LOGO</dd>
     <dt>Backend <span class="property-type">select</span></dt>
     <dd>Communication library to use</dd>
+    <dt>Debug logging <span class="property-type">boolean</span></dt>
+    <dd>When enabled, the <code>nodes7</code> backend prints raw protocol trace
+    output (every read/poll cycle) to stdout. Disabled by default to avoid
+    flooding container logs; only turn on for troubleshooting.</dd>
   </dl>
   <h3>Backends</h3>
   <table style="width:100%;border-collapse:collapse;font-size:13px;">

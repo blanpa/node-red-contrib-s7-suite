@@ -19,6 +19,9 @@ jest.mock('nodes7', () => {
   }));
 });
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mockNodes7 = require('nodes7') as jest.Mock;
+
 describe('NodeS7Backend', () => {
   let backend: NodeS7Backend;
 
@@ -59,6 +62,27 @@ describe('NodeS7Backend', () => {
           backend: 'nodes7',
         }),
       ).rejects.toThrow('nodes7 connection failed');
+    });
+
+    it('constructs nodes7 in silent mode by default (no verbose protocol logging)', async () => {
+      mockInitiateConnection.mockImplementation((_params: unknown, cb: Function) => cb());
+
+      await backend.connect({
+        host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'nodes7',
+      });
+
+      expect(mockNodes7).toHaveBeenCalledWith({ silent: true });
+    });
+
+    it('enables verbose logging when debug is true', async () => {
+      mockInitiateConnection.mockImplementation((_params: unknown, cb: Function) => cb());
+
+      await backend.connect({
+        host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'nodes7',
+        debug: true,
+      });
+
+      expect(mockNodes7).toHaveBeenCalledWith({ silent: false });
     });
 
     it('passes TSAP params', async () => {

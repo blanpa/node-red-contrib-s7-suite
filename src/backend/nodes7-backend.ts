@@ -12,7 +12,10 @@ export class NodeS7Backend implements IS7Backend {
   async connect(config: S7ConnectionConfig): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const nodes7 = require('nodes7');
-    this.conn = new nodes7();
+    // nodeS7 defaults silentMode to false, which logs every read/poll cycle
+    // (raw protocol trace) to stdout and can grow container logs to GBs.
+    // Keep it silent unless the user explicitly enables debug logging.
+    this.conn = new nodes7({ silent: config.debug !== true });
 
     const connParams: Record<string, unknown> = {
       host: config.host,
