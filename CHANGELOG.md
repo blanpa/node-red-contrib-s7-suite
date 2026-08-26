@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-08-26
+
+### Changed
+
+- **License changed from MIT to Apache-2.0.** Apache-2.0 is the license
+  Node-RED itself uses. Compared to MIT it adds an explicit patent grant
+  (section 3), keeps attribution intact downstream through the new `NOTICE`
+  file (section 4d), and requires modified files to be marked as changed
+  (section 4b). It remains fully permissive: commercial use, closed-source
+  derivatives and forks are all still allowed.
+- **`NOTICE` added** and verified to ship inside the npm tarball.
+- **Fork guidance in the README.** Forks published under a different package
+  name are asked to rename their Node-RED node type IDs and use their own
+  palette category, so both packages can be installed side by side.
+
 ## [0.0.6] - 2026-06-22
 
 ### Fixed
