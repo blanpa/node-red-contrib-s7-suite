@@ -15,7 +15,7 @@
     "s7-1200",
     "s7-1500"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "LA",
   "repository": {
     "type": "git",
@@ -78,6 +78,7 @@
   "files": [
     "dist/",
     "LICENSE",
+    "NOTICE",
     "README.md",
     "CHANGELOG.md"
   ]
