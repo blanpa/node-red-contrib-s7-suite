@@ -29,9 +29,12 @@ jobs:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
 
-      # Trusted Publishing benötigt npm >= 11.5.1
+      # Trusted Publishing benötigt npm >= 11.5.1.
+      # Bewusst auf die 11er-Linie gepinnt: npm@latest ist inzwischen 12.x und
+      # verlangt node ^22.22.2 || ^24.15.0 || >=26 — npm@latest läuft dem
+      # Runner-Node davon und bricht den Publish.
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11
 
       - name: Install dependencies
         run: npm ci
