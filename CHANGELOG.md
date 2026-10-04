@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-10-04
+## [0.0.9] - 2026-10-04
 
 A large release, almost all of it contributed by [@Steve-Mcl](https://github.com/Steve-Mcl):
 12 pull requests covering the editor, both backends, new data types and connection handling.

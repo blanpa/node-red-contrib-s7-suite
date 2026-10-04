@@ -319,7 +319,7 @@ Thanks to everyone who has contributed code, bug reports and test material:
 | | Contributor | Contributions |
 |---|---|---|
 | <img src="https://github.com/blanpa.png?size=48" width="48" height="48" alt=""> | [@blanpa](https://github.com/blanpa) | Author and maintainer |
-| <img src="https://github.com/Steve-Mcl.png?size=48" width="48" height="48" alt=""> | [@Steve-Mcl](https://github.com/Steve-Mcl) | Editor fixes and layout, environment variables for connection settings, `DT`/`DTL` and exact 64-bit types, string writes, connection-loss detection, error messages, TIA Portal `.xml`/`.sdf` import, and many backend fixes (0.1.0) |
+| <img src="https://github.com/Steve-Mcl.png?size=48" width="48" height="48" alt=""> | [@Steve-Mcl](https://github.com/Steve-Mcl) | Editor fixes and layout, environment variables for connection settings, `DT`/`DTL` and exact 64-bit types, string writes, connection-loss detection, error messages, TIA Portal `.xml`/`.sdf` import, and many backend fixes (0.0.9) |
 | <img src="https://github.com/birosz.png?size=48" width="48" height="48" alt=""> | [@birosz](https://github.com/birosz) | Test material and bug reports |
 
 Bug reports that led to fixes: [@BurgerMirco](https://github.com/BurgerMirco), [@robbin2109](https://github.com/robbin2109).
