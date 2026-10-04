@@ -15,13 +15,13 @@ s7-suite is a TypeScript-based Node-RED package for communicating with Siemens S
 - `node-snap7` — native Snap7 library, enables advanced features like block listing, SZL reads, and CPU control
 - `sim` — built-in simulator generating dynamic values (sine waves, counters, sawtooth signals) for development without a physical PLC
 
-**Flexible address formats** — Write addresses in the style you prefer: nodes7-style (`DB1,REAL0`), IEC-style (`DB1.DBD0`), or area-style (`MW4`, `I0.1`, `QD8`). The address parser handles conversion transparently.
+**Flexible address formats** — Write addresses in the style you prefer: nodes7-style (`DB1,REAL0`), IEC-style (`DB1.DBD0`), or area-style (`MW4`, `I0.1`, `QD8`). The address parser handles conversion transparently. See [Addresses and data types](#addresses-and-data-types).
 
 **Smart polling** — The trigger node supports edge detection (`rising`, `falling`, `any`) for booleans and configurable deadband for numeric values, reducing unnecessary messages in flows.
 
 **PLC browsing** — Discover data blocks directly from Node-RED. With snap7 this uses native block listing; with nodes7 a probe-based approach with rate limiting explores the PLC address space safely.
 
-**Robust connections** — Connection manager with request queuing (max 100), automatic reconnection with exponential backoff, and structured error codes (`S7Error` with error code and cause chain).
+**Robust connections** — Connection manager with request queuing (max 100), automatic reconnection with exponential backoff, a link check while idle so the node status follows the PLC, and structured error codes (`S7Error` with error code and cause chain).
 
 **Flexible read/write modes** — Single values, combined objects, raw buffers, structured schemas, or unpacked bit arrays.
 
@@ -33,7 +33,7 @@ s7-suite is a TypeScript-based Node-RED package for communicating with Siemens S
 
 - **s7-config** — Connection configuration with backend selection and auto-reconnect. Host, port, rack, slot, TSAPs and timeouts can each come from an environment variable, so one flow can run against different PLCs
 - **s7-read** — Read PLC data in multiple output modes: single value, combined object, raw buffer, struct, or bit array
-- **s7-write** — Write data to PLC memory areas with dynamic address via `msg.topic`
+- **s7-write** — Write single values, arrays, strings or whole structs to PLC memory areas, with dynamic address via `msg.topic`
 - **s7-trigger** — Polling with edge detection and deadband filtering
 - **s7-browse** — Discover PLC data blocks with category filtering and search; supports both live PLC and offline `.cfg` import
 - **s7-control** — CPU control actions: Start, Stop, Cold Start (snap7 backend only)
@@ -49,6 +49,57 @@ S7-200, S7-300, S7-400, S7-1200, S7-1500, LOGO!
 | nodes7 | `nodes7` | Pure JavaScript, no native compilation needed |
 | snap7 | `node-snap7` | Native library via Snap7, optional |
 | sim | built-in | Simulation backend for development and testing |
+
+### Addresses and data types
+
+Three address styles are accepted and can be mixed freely:
+
+| Style | Examples |
+|-------|----------|
+| nodes7 | `DB1,REAL0` · `DB1,X0.3` · `DB1,INT20.3` · `DB1,STRING50.20` |
+| IEC | `DB1.DBX0.3` · `DB1.DBB4` · `DB1.DBW6` · `DB1.DBD8` |
+| Area | `M0.1` · `MB4` · `MW6` · `MD8` · `I0.0` · `IB0` · `QW2` · `C1` · `T2` |
+
+What the numbers after the offset mean depends on the type:
+
+| Address | Meaning |
+|---------|---------|
+| `DB1,X10.3` · `M10.3` | bit 3 of byte 10 (`BOOL` can be written instead of `X`) |
+| `DB1,X10.3.8` · `M10.3.8` | 8 consecutive bits starting at bit 3 of byte 10 — an `Array[0..7] of Bool` |
+| `DB1,INT20.3` · `MB20.3` | array of 3 values. The longer form `DB1,INT20.0.3` means the same |
+| `DB1,STRING50.20` | a `STRING[20]` at offset 50. The length can be left off when writing a string that is already declared in the PLC |
+
+An address with a length reads as an array and is written from an array of exactly that many values; a byte array also accepts a `Buffer`.
+
+| Type | Size | Value in Node-RED | nodes7 backend |
+|------|------|-------------------|----------------|
+| `BOOL` / `X` | 1 bit | boolean | ✓ |
+| `BYTE`, `CHAR` | 1 byte | number, 1-character string | ✓ |
+| `WORD`, `INT` | 2 bytes | number | ✓ |
+| `DWORD`, `DINT` | 4 bytes | number | ✓ |
+| `REAL`, `LREAL` | 4 / 8 bytes | number | ✓ |
+| `STRING` | length + 2 bytes | string | ✓ (reads need the length in the address) |
+| `DT`, `DTZ` | 8 bytes | `Date` — a PLC `DATE_AND_TIME`, as server-local time (`DT`) or UTC (`DTZ`) | ✓ |
+| `DTL`, `DTLZ` | 12 bytes | `Date` — a PLC `DTL`, as server-local time (`DTL`) or UTC (`DTLZ`) | ✓ |
+| `USINT`, `UINT`, `UDINT` | 1 / 2 / 4 bytes | number | snap7 only |
+| `LINT`, `ULINT` | 8 bytes | number, BigInt or string (see below) | snap7 only |
+| `WSTRING` | 2 × length + 4 bytes | string | writes only; reads need snap7 |
+| `DATE` | 2 bytes | string `YYYY-MM-DD` | snap7 only |
+| `TIME`, `TIME_OF_DAY` | 4 bytes | number (ms) | snap7 only |
+| `S5TIME` | 2 bytes | number (ms) | snap7 only |
+| `DATE_AND_TIME` | 8 bytes | ISO string (UTC) | snap7 only |
+
+The `sim` backend supports every type. Counters and timers (`C1`, `T2`) also need the snap7 backend. On the nodes7 backend an unsupported type is reported as an error that names the address, never as a silent `null`.
+
+**Dates** — Writes to `DT`, `DTZ`, `DTL` and `DTLZ` accept a `Date`, an ISO string or milliseconds since 1970. A PLC date has no time zone: use the `Z` form when the PLC keeps UTC, the plain form when it keeps local time.
+
+**64-bit integers** — A JavaScript number is exact only up to 2^53. The **LINT/ULINT as** setting on `s7-config` chooses how `LINT` and `ULINT` are returned: *Number* (default), *BigInt* (exact, but cannot pass through `JSON.stringify`, so not through MQTT or HTTP) or *String* (exact and safe to send anywhere). Writes accept all three.
+
+**Strings** — A write changes only the string's current length and characters, never its declared max length or anything after it. A value longer than the string is rejected.
+
+### Environment variables
+
+Host, port, rack, slot, the TSAPs, the timeouts and the reconnect intervals on `s7-config` each take either a value or the name of an environment variable (pick `env` in the field's type menu). Node-RED's flow and global environment variables work as well as the process environment, so the same flow can be deployed against different PLCs. A variable that is unset, or not a number where one is needed, is reported as a config error and the node does not connect — it never falls back to a default.
 
 ### Node API
 
@@ -83,12 +134,14 @@ On success, the input message is passed through to the output.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `msg.interval` | number | Input: override polling interval (ms) |
+| `msg.interval` | number | Input: override polling interval (ms) — see note below |
 | `msg.edgeMode` | string | Input: override edge mode (`any`, `rising`, `falling`) |
 | `msg.deadband` | number | Input: override deadband threshold |
 | `msg.payload` | any | Output: new value |
 | `msg.topic` | string | Output: address that changed |
 | `msg.oldValue` | any | Output: previous value |
+
+> **Note:** the three input properties are not usable yet: the node currently has no input port ([#29](https://github.com/blanpa/node-red-contrib-s7-suite/issues/29)).
 
 #### s7-browse
 
@@ -111,7 +164,11 @@ Requires the **snap7** backend. Send a message to execute the configured action,
 
 **LOGO connection** — LOGO PLCs require TSAP-based connections. Set PLC Type to "LOGO" and configure Local TSAP (e.g. `0x0100`) and Remote TSAP (e.g. `0x0200`). TSAPs are hex: `0x0100`, `0100` and `01.00` (as LOGO! Soft Comfort shows them) all mean the same, and a decimal number is read as hex too.
 
-**Address parse errors** — Verify address format. Examples: `DB1,REAL0`, `DB1.DBD0`, `MW4`, `I0.1`, `QB0`. See the address format table above.
+**Address parse errors** — Verify address format. Examples: `DB1,REAL0`, `DB1.DBD0`, `MW4`, `I0.1`, `QB0`. See [Addresses and data types](#addresses-and-data-types).
+
+**"isn't supported by the nodes7 backend"** — nodes7 has no support for that data type (see the table in [Addresses and data types](#addresses-and-data-types)). Switch the connection's backend to `snap7`.
+
+**"bad quality for …"** — The PLC rejected the address: the DB does not exist, or the address runs past the end of the DB or area.
 
 **Excel import does nothing** — XLSX parsing requires the SheetJS library, which is loaded on demand from a public CDN. If your Node-RED editor runs in an air-gapped environment, export your tag list as `.csv` from Excel/TIA Portal instead.
 
@@ -162,7 +219,7 @@ Node-RED is then available at [http://localhost:1885](http://localhost:1885) wit
 ### Getting Started
 
 ```bash
-git clone https://github.com/lagramm/node-red-contrib-s7-suite.git
+git clone https://github.com/blanpa/node-red-contrib-s7-suite.git
 cd node-red-contrib-s7-suite
 npm install
 npm run build
@@ -254,6 +311,20 @@ docs: add Docker deployment instructions
 - Use the **sim backend** for development — no physical PLC required
 - Import `examples/test-flows.json` into Node-RED for a ready-made test setup
 - Run the project in Docker for a quick local environment: `docker compose up -d`
+
+## Contributors
+
+Thanks to everyone who has contributed code, bug reports and test material:
+
+| | Contributor | Contributions |
+|---|---|---|
+| <img src="https://github.com/blanpa.png?size=48" width="48" height="48" alt=""> | [@blanpa](https://github.com/blanpa) | Author and maintainer |
+| <img src="https://github.com/Steve-Mcl.png?size=48" width="48" height="48" alt=""> | [@Steve-Mcl](https://github.com/Steve-Mcl) | Editor fixes and layout, environment variables for connection settings, `DT`/`DTL` and exact 64-bit types, string writes, connection-loss detection, error messages, TIA Portal `.xml`/`.sdf` import, and many backend fixes (0.1.0) |
+| <img src="https://github.com/birosz.png?size=48" width="48" height="48" alt=""> | [@birosz](https://github.com/birosz) | Test material and bug reports |
+
+Bug reports that led to fixes: [@BurgerMirco](https://github.com/BurgerMirco), [@robbin2109](https://github.com/robbin2109).
+
+Want to be on this list? See [Contributing](#contributing).
 
 ## Changelog
 

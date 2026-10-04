@@ -4,14 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-04
+
+A large release, almost all of it contributed by [@Steve-Mcl](https://github.com/Steve-Mcl):
+12 pull requests covering the editor, both backends, new data types and connection handling.
+Thanks also to [@BurgerMirco](https://github.com/BurgerMirco) for reporting #19.
+
+### Upgrade notes
+- **A single number after the offset is now the array length**, as in nodes7: `DB1,BYTE10.4` is 4 bytes and `QB0.4` is 4 bytes. Both used to read one value, with the number silently dropped. `DB1,BYTE10.0.4` still means the same. A bit offset on a type without bits (`DB1,REAL0.3.2`) and a bit offset above 7 (`M10.12`) are now errors (#50)
+- **The number after a STRING or WSTRING offset is its max length**: `DB1,STRING50.20` is a `STRING[20]` at offset 50. It used to be read as an array length or a bit offset (#44)
+- **String writes are stricter**: a value longer than the string's max length is rejected (snap7 used to write past the end, nodes7 truncated), and so is a write to a string with an empty header when the address gives no length (#44)
+- **nodes7 backend: unsupported types are refused with an error** instead of returning `null` or writing nothing: USINT, UINT, UDINT, LINT, ULINT, DATE, TIME, TIME_OF_DAY, DATE_AND_TIME, S5TIME, WSTRING reads, counters and timers. Use the snap7 backend for these (#45)
+- **Timeouts and reconnect intervals must be whole numbers of 1 ms or more**, and a TSAP that isn't valid hex is a config error instead of a silently wrong value (#41)
+- **snap7: a lost connection fails the whole read** so the node reconnects, instead of returning every item as `bad` (#34)
+
+### Added
+- **Date and time types `DT`, `DTZ`, `DTL` and `DTLZ`** on every backend. `DT`/`DTZ` are a PLC `DATE_AND_TIME`, `DTL`/`DTLZ` a `DTL`; the `Z` forms are read and written as UTC, the others as the server's local time. They return a `Date`; writes accept a `Date`, an ISO string or milliseconds since 1970 (#46, part of #24)
+- **Exact `LINT`/`ULINT`**: new *LINT/ULINT as* setting on `s7-config` returns 64-bit integers as Number (default, exact up to 2^53), BigInt or String. Writes accept a number, a BigInt or an integer string, and out-of-range values are rejected (#46)
+- **Environment variables for connection settings**: host, port, rack, slot, TSAPs, timeouts and reconnect intervals on `s7-config` each take a value or the name of an environment variable, so one flow can run against different PLCs. An unset or unusable variable is reported as a config error, never replaced by a default (#41, #28)
+- **TSAPs accept the dotted form** LOGO! Soft Comfort and TIA Portal show (`01.00`) as well as `0x0100` and `0100` (#41)
+- **Lost connections are noticed while idle**: the connection is checked every 2 s when connected, so the node status follows the PLC without waiting for the next request (#34, #21)
+- **TIA Portal `.xml` and `.sdf` tag table exports** can be imported in `s7-read`, in addition to `.xlsx`. The file picker also offers `.xlsm`, `.xlsb` and `.ods` (#37, #25)
+- **`DB1,X0.0`**, nodes7's own bit syntax, is accepted as an address (#32)
+- **All 25 data types in the struct schema editors** of `s7-read` and `s7-write` (they listed 10), and `s7-write` struct mode accepts the same types as `s7-read` (#46)
+- **Array writes** on every backend: an address with a length takes an array of that many values, and a byte array also takes a Buffer (#47)
+
 ### Fixed
-- **Writing several values to one address** (`DB1,BYTE10.0.4`, `DB1,INT20.3`) wrote a single zero on the snap7 and sim backends. They now write every element, from an array or, for bytes, a Buffer. A value whose length doesn't match the address is rejected on every backend instead of being written short (#47)
+- **`s7-read` / `s7-write`: edits were lost on Done**: the address list, labels, single address and struct schema reverted to their old values when the dialog closed (#31, #19)
+- **nodes7: DB bits returned `null` and bit writes timed out**: DB bits are now sent to nodes7 as `X` (#32, #20)
+- **Error messages said `undefined`**: backend errors now give the cause, e.g. `snap7 read failed: CPU : Address out of range (8 bytes at DB1 offset 200)` or the addresses nodes7 marked bad (#33, #22)
+- **Node status stayed "connected" after the PLC went away**: both backends now report a lost link as a disconnect, and reconnects no longer leak the previous connection (#34, #21)
+- **snap7 ignored the configured port** and always connected to 102 (#35, #23)
+- **snap7: writing a STRING overwrote 256 bytes of the DB**: all backends now write only the string's current length and characters, sized from the header in the PLC (#44, #42)
+- **nodes7: writing a type it doesn't know resent the previous write and reported success** (#45, #43)
+- **Writing several values to one address** (`DB1,BYTE10.0.4`, `DB1,INT20.3`) wrote a single zero on the snap7 and sim backends. A value whose length doesn't match the address is rejected on every backend instead of being written short (#47)
 - **Bit arrays** (`DB1,X10.3.8`, `M10.3.8`) are 8 consecutive bits from bit 3 of byte 10 on every backend, read and write. snap7 and the sim used to read one bit per byte and write a single bit, and the count was dropped for `M`/`I`/`Q` bits on nodes7 (#51)
-- **s7-trigger fired on every poll for an array address**: arrays and Buffers are now compared by content (#48)
+- **s7-trigger fired on every poll** for an array address or a `Date` value: arrays, Buffers and dates are now compared by content (#48, #46)
 - **nodes7: one bad address no longer fails the whole read**. The good values are returned and the bad items are marked `bad` with a reason, as on snap7. A read with no good value at all still fails (#49)
+- **`DATE_AND_TIME` writes had the wrong weekday** (S7 counts Sunday as 1), and an invalid date was written as zeros instead of being rejected (#46)
+- **WSTRING fields in `s7-write` struct mode always failed** with "Buffer too small" (#46)
+- **Editor layout**: the address and schema lists use the full width and the available height and open at the top; labels in `s7-config` no longer wrap; the connection status dot no longer overlaps the add button (#40, #41, #27)
+- **A new `s7-config` started with an empty rack** and failed validation; it now starts with rack 0 (#41)
+- **`npm run lint` and `npm run format` did nothing on Windows** (#36, #30)
 
 ### Changed
-- **A single number after the offset is the array length**, as in nodes7: `DB1,BYTE10.4` is 4 bytes and `QB0.4` is 4 bytes (they used to read as one value). `DB1,BYTE10.0.4` still means the same. A bit offset on a type without bits (`DB1,REAL0.3.2`) and a bit offset above 7 (`M10.12`) are now errors instead of being ignored (#50)
+- README: address syntax and data type reference, and the list of supported tag-import formats (#37, #25)
 
 ## [0.0.8] - 2026-08-26
 
