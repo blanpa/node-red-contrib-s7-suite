@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.10] - 2026-10-10
 
 ### Upgrade notes
 - **`s7-trigger` rising and falling edge modes no longer send the first value** (#75). The first poll of a boolean only records its starting value, because a starting value is not an edge. `any` still sends the first value
