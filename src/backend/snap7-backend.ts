@@ -117,15 +117,22 @@ export class Snap7Backend implements IS7Backend {
   }
 
   /** node-snap7 passes a numeric error code; ErrorText() gives e.g. "CPU : Address out of range". */
-  private describeError(err: unknown): string {
-    if (typeof err === 'number' && this.client) {
-      return String(this.client.ErrorText(err)).trim();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private describeError(err: unknown, client: any = this.client): string {
+    if (typeof err === 'number' && client) {
+      return String(client.ErrorText(err)).trim();
     }
     return describeError(err);
   }
 
-  /** DISCONNECTED (and mark the link down) for TCP/ISO errors, otherwise the given code. */
-  private codeFor(err: unknown, fallback: S7ErrorCode): S7ErrorCode {
+  /**
+   * DISCONNECTED (and mark the link down) for TCP/ISO errors, otherwise the given code. `client` is
+   * the one the request was sent on: an error from a client a reconnect has since replaced (its
+   * socket is gone) says nothing about the current link, so it keeps the given code and leaves the
+   * link alone. Otherwise the new connection would be marked down and refuse every request.
+   */
+  private codeFor(client: unknown, err: unknown, fallback: S7ErrorCode): S7ErrorCode {
+    if (client !== this.client) return fallback;
     if (typeof err === 'number' && (err & LINK_ERROR_MASK) !== 0) {
       this.connected = false;
       return S7ErrorCode.DISCONNECTED;
@@ -138,10 +145,11 @@ export class Snap7Backend implements IS7Backend {
     if (!this.client || !this.connected) {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
+    const client = this.client;
     return new Promise<void>((resolve, reject) => {
-      this.client.PlcStatus((err: unknown) => {
+      client.PlcStatus((err: unknown) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.READ_FAILED), `snap7 status check failed: ${this.describeError(err)}`));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.READ_FAILED), `snap7 status check failed: ${this.describeError(err, client)}`));
         } else {
           resolve();
         }
@@ -230,12 +238,13 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<Buffer>((resolve, reject) => {
-      this.client.ReadArea(area, dbNumber, start, length, 0x02 /* S7WLByte */, (err: Error | undefined, data: Buffer) => {
+      client.ReadArea(area, dbNumber, start, length, 0x02 /* S7WLByte */, (err: Error | undefined, data: Buffer) => {
         if (err) {
           reject(new S7Error(
-            this.codeFor(err, S7ErrorCode.READ_FAILED),
-            `snap7 read failed: ${this.describeError(err)} (${describeRawRequest(area, dbNumber, start, length)})`,
+            this.codeFor(client, err, S7ErrorCode.READ_FAILED),
+            `snap7 read failed: ${this.describeError(err, client)} (${describeRawRequest(area, dbNumber, start, length)})`,
             err,
           ));
         } else {
@@ -246,12 +255,18 @@ export class Snap7Backend implements IS7Backend {
   }
 
   private async writeRawArea(area: number, dbNumber: number, start: number, length: number, buffer: Buffer): Promise<void> {
+    // A STRING or BOOL write reads first, so the link can drop before we get here
+    if (!this.client || !this.connected) {
+      throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
+    }
+
+    const client = this.client;
     return new Promise<void>((resolve, reject) => {
-      this.client.WriteArea(area, dbNumber, start, length, 0x02, buffer, (err: Error | undefined) => {
+      client.WriteArea(area, dbNumber, start, length, 0x02, buffer, (err: Error | undefined) => {
         if (err) {
           reject(new S7Error(
-            this.codeFor(err, S7ErrorCode.WRITE_FAILED),
-            `snap7 write failed: ${this.describeError(err)} (${describeRawRequest(area, dbNumber, start, length)})`,
+            this.codeFor(client, err, S7ErrorCode.WRITE_FAILED),
+            `snap7 write failed: ${this.describeError(err, client)} (${describeRawRequest(area, dbNumber, start, length)})`,
             err,
           ));
         } else {
@@ -266,10 +281,11 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<S7BlockList>((resolve, reject) => {
-      this.client.ListBlocks((err: Error | undefined, list: S7BlockList) => {
+      client.ListBlocks((err: Error | undefined, list: S7BlockList) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.BROWSE_FAILED), `ListBlocks failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.BROWSE_FAILED), `ListBlocks failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve(list);
         }
@@ -284,10 +300,11 @@ export class Snap7Backend implements IS7Backend {
 
     const typeCode = BLOCK_TYPE_MAP[blockType];
 
+    const client = this.client;
     return new Promise<number[]>((resolve, reject) => {
-      this.client.ListBlocksOfType(typeCode, (err: Error | undefined, blocks: number[]) => {
+      client.ListBlocksOfType(typeCode, (err: Error | undefined, blocks: number[]) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.BROWSE_FAILED), `ListBlocksOfType failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.BROWSE_FAILED), `ListBlocksOfType failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve(blocks);
         }
@@ -302,10 +319,11 @@ export class Snap7Backend implements IS7Backend {
 
     const typeCode = BLOCK_TYPE_MAP[blockType];
 
+    const client = this.client;
     return new Promise<S7BlockInfo>((resolve, reject) => {
-      this.client.GetAgBlockInfo(typeCode, blockNumber, (err: Error | undefined, info: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      client.GetAgBlockInfo(typeCode, blockNumber, (err: Error | undefined, info: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.BROWSE_FAILED), `GetBlockInfo failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.BROWSE_FAILED), `GetBlockInfo failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve({
             blockType,
@@ -327,10 +345,11 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<void>((resolve, reject) => {
-      this.client.PlcHotStart((err: Error | undefined) => {
+      client.PlcHotStart((err: Error | undefined) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.CONTROL_FAILED), `PlcHotStart failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.CONTROL_FAILED), `PlcHotStart failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve();
         }
@@ -343,10 +362,11 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<void>((resolve, reject) => {
-      this.client.PlcStop((err: Error | undefined) => {
+      client.PlcStop((err: Error | undefined) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.CONTROL_FAILED), `PlcStop failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.CONTROL_FAILED), `PlcStop failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve();
         }
@@ -359,10 +379,11 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<void>((resolve, reject) => {
-      this.client.PlcColdStart((err: Error | undefined) => {
+      client.PlcColdStart((err: Error | undefined) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.CONTROL_FAILED), `PlcColdStart failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.CONTROL_FAILED), `PlcColdStart failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve();
         }
@@ -375,10 +396,11 @@ export class Snap7Backend implements IS7Backend {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
     }
 
+    const client = this.client;
     return new Promise<Buffer>((resolve, reject) => {
-      this.client.ReadSZL(id, index, (err: Error | undefined, data: Buffer) => {
+      client.ReadSZL(id, index, (err: Error | undefined, data: Buffer) => {
         if (err) {
-          reject(new S7Error(this.codeFor(err, S7ErrorCode.BROWSE_FAILED), `ReadSZL failed: ${this.describeError(err)}`, err));
+          reject(new S7Error(this.codeFor(client, err, S7ErrorCode.BROWSE_FAILED), `ReadSZL failed: ${this.describeError(err, client)}`, err));
         } else {
           resolve(data);
         }

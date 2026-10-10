@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { ConnectionManager } from '../../../src/core/connection-manager';
 import { MockBackend } from '../../helpers/mock-backend';
+import { S7Error, S7ErrorCode } from '../../../src/utils/error-codes';
 
 import s7TriggerModule = require('../../../src/nodes/s7-trigger/s7-trigger');
 
@@ -253,6 +254,27 @@ describe('s7-trigger node', () => {
       if (closeListeners.length > 0) {
         closeListeners[0](() => {});
       }
+    });
+
+    it('reports a poll that times out, though the timeout also stops the poller', async () => {
+      jest.useRealTimers();
+      // A timeout is a connection error: the connection manager goes to reconnecting in the same
+      // tick it rejects the read, which stops the trigger's poller before the poll sees the error
+      mockBackend.read = async () => {
+        throw new S7Error(S7ErrorCode.REQUEST_TIMEOUT, 'Request timed out');
+      };
+
+      const node = createNodeContext();
+      constructorFn.call(node, {
+        id: 'trigger1', type: 's7-trigger', server: 'config1', address: 'DB1,REAL0',
+        interval: 50, edgeMode: 'any', deadband: 0,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (node as any).listeners('close')[0](() => {});
+
+      expect(connManager.getState()).not.toBe('connected');
+      expect(node.error).toHaveBeenCalledWith('Request timed out');
     });
 
     it('stops poller on reconnecting state', () => {

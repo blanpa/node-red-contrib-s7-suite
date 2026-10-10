@@ -462,6 +462,24 @@ describe('Snap7Backend', () => {
       expect(mockWriteArea).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['BOOL', { area: 'DB', dbNumber: 1, dataType: 'BOOL', offset: 0, bitOffset: 3 }, true],
+      ['STRING', { area: 'DB', dbNumber: 1, dataType: 'STRING', offset: 0, bitOffset: 0 }, 'hi'],
+    ])('reports DISCONNECTED when the link drops between the read and the write of a %s', async (_type, address, value) => {
+      mockReadArea.mockImplementation(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => {
+          void backend.disconnect();
+          cb(undefined, Buffer.from([20, 0]));
+        },
+      );
+
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        backend.write([{ name: 'x', address: address as any, value }]),
+      ).rejects.toMatchObject({ code: 'DISCONNECTED', message: 'Not connected' });
+      expect(mockWriteArea).not.toHaveBeenCalled();
+    });
+
     it('throws when not connected', async () => {
       const freshBackend = new Snap7Backend();
       await expect(
@@ -708,6 +726,23 @@ describe('Snap7Backend', () => {
     it('ping() does not mark the link down when the CPU rejects the request itself', async () => {
       mockPlcStatus.mockImplementation((cb: Function) => cb(OUT_OF_RANGE));
       await expect(backend.ping()).rejects.toMatchObject({ code: 'READ_FAILED' });
+      expect(backend.isConnected()).toBe(true);
+    });
+
+    // Seen on a real S7-1200: a read in flight during a reconnect failed on the old client about
+    // 3 s later ("Connection timed out"), marked the new connection down, and every request on it
+    // was then refused with "Not connected"
+    it('does not let a late link error from a replaced client mark the new connection down', async () => {
+      const pending: { cb?: Function } = {};
+      mockReadArea.mockImplementationOnce(
+        (_a: unknown, _d: unknown, _s: unknown, _l: unknown, _w: unknown, cb: Function) => { pending.cb = cb; },
+      );
+      const reading = backend.read([item]);
+      await backend.connect({ host: '192.168.1.100', port: 102, rack: 0, slot: 1, plcType: 'S7-1200', backend: 'snap7' });
+
+      pending.cb!(LINK_RESET);
+      // Not DISCONNECTED, so the connection manager doesn't tear down the new connection either
+      await expect(reading).resolves.toMatchObject([{ quality: 'bad', error: expect.stringContaining('ISO : link gone') }]);
       expect(backend.isConnected()).toBe(true);
     });
 

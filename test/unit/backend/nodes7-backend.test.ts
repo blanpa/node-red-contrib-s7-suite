@@ -1,4 +1,5 @@
 import { NodeS7Backend } from '../../../src/backend/nodes7-backend';
+import { ConnectionManager } from '../../../src/core/connection-manager';
 
 // Mock nodes7 module
 const mockInitiateConnection = jest.fn();
@@ -174,6 +175,104 @@ describe('NodeS7Backend', () => {
 
       expect(mockDropConnection).toHaveBeenCalledTimes(1);
       expect(mockNodes7).toHaveBeenCalledTimes(2);
+    });
+
+    // A stalled link: the connection manager times the request out and disconnects, then
+    // nodes7's own packet timeout calls back on the connection that has been dropped
+    describe('an answer that arrives after disconnect', () => {
+      // Not DISCONNECTED: the connection manager dropped that connection itself, and a
+      // connection-class code would make it tear down the one that replaced it
+      const closed = (op: string) => ({
+        code: op === 'write' ? 'WRITE_FAILED' : 'READ_FAILED',
+        message: `nodes7 ${op} failed: the connection was closed before the PLC answered`,
+      });
+      const later = (mock: jest.Mock) => {
+        const pending: { cb?: Function } = {};
+        mock.mockImplementation((...args: unknown[]) => { pending.cb = args[args.length - 1] as Function; });
+        return pending;
+      };
+
+      it('does not throw for a failed read, and reports it without a connection error code', async () => {
+        const pending = later(mockReadAllItems);
+        const reading = backend.read([item]);
+        await backend.disconnect();
+        expect(() => pending.cb!(true, { 'DB1,REAL0': 'BAD 255' })).not.toThrow();
+        await expect(reading).rejects.toMatchObject(closed('read'));
+        expect(mockRemoveItems).toHaveBeenCalledWith('DB1,REAL0');
+      });
+
+      it('does not throw for a failed write, and reports it without a connection error code', async () => {
+        const pending = later(mockWriteItems);
+        const writing = backend.write([{ ...item, value: 1.5 }]);
+        await backend.disconnect();
+        expect(() => pending.cb!(true)).not.toThrow();
+        await expect(writing).rejects.toMatchObject(closed('write'));
+      });
+
+      it('does not throw for a failed raw read', async () => {
+        const pending = later(mockReadAllItems);
+        const reading = backend.readRawArea(0x84, 1, 0, 4);
+        await backend.disconnect();
+        expect(() => pending.cb!(true, { 'DB1,BYTE0.4': 'BAD 255' })).not.toThrow();
+        await expect(reading).rejects.toMatchObject(closed('read'));
+      });
+
+      it('counts a write the PLC acknowledged as done, so a retry cannot write it twice', async () => {
+        const pending = later(mockWriteItems);
+        const writing = backend.write([{ ...item, value: 1.5 }]);
+        await backend.disconnect();
+        pending.cb!(false);
+        await expect(writing).resolves.toBeUndefined();
+      });
+
+      it('returns the values of a read the PLC answered', async () => {
+        const pending = later(mockReadAllItems);
+        const reading = backend.readRawArea(0x84, 1, 0, 4);
+        await backend.disconnect();
+        pending.cb!(false, { 'DB1,BYTE0.4': [1, 2, 3, 4] });
+        await expect(reading).resolves.toEqual(Buffer.from([1, 2, 3, 4]));
+      });
+
+      it('does not make the connection manager drop the connection a reconnect just made', async () => {
+        const cm = new ConnectionManager(backend, { ...cfg, requestTimeout: 60000, healthCheckInterval: 0 });
+        await cm.connect();
+        const pending = later(mockReadAllItems);
+        const reading = cm.read([item]);
+        await new Promise((resolve) => setImmediate(resolve));
+        await cm.reconnect();
+        expect(cm.getState()).toBe('connected');
+        // The old connection's read fails late, after the new connection is up
+        pending.cb!(true, { 'DB1,REAL0': 'BAD 255' });
+        await expect(reading).rejects.toMatchObject(closed('read'));
+        expect(cm.getState()).toBe('connected');
+        await cm.disconnect();
+      });
+
+      it('does not report a connection error for the connection that replaced it', async () => {
+        const pending = later(mockReadAllItems);
+        const reading = backend.read([item]);
+        await backend.connect(cfg);
+        mockIso.state = 4;
+        pending.cb!(true, { 'DB1,REAL0': 'BAD 255' });
+        await expect(reading).rejects.toMatchObject(closed('read'));
+        expect(backend.isConnected()).toBe(true);
+      });
+    });
+
+    it('refuses a string write when the link drops while its header is read', async () => {
+      const str = {
+        name: 's',
+        address: { area: 'DB' as const, dbNumber: 1, dataType: 'STRING' as const, offset: 0, bitOffset: 0, stringLength: 10 },
+        nodes7Address: 'DB1,STRING0.10',
+        value: 'hi',
+      };
+      mockReadAllItems.mockImplementation((cb: Function) => {
+        cb(false, { 'DB1,BYTE0.2': [10, 0] });
+        void backend.disconnect();
+      });
+
+      await expect(backend.write([str])).rejects.toMatchObject({ code: 'DISCONNECTED', message: 'Not connected' });
+      expect(mockWriteItems).not.toHaveBeenCalled();
     });
   });
 

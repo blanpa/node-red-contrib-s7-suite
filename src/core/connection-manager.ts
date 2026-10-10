@@ -28,6 +28,9 @@ export class ConnectionManager extends EventEmitter {
   // The backend clean-up after a lost link when nothing will retry
   private cleanup: Promise<void> | null = null;
   private stateSince = Date.now();
+  // Bumped whenever the connection stops being connected. A request sent on an earlier connection
+  // can still fail later (its socket is gone), and that says nothing about the current one.
+  private epoch = 0;
   private lastError: string | null = null;
   private lastErrorAt: number | null = null;
 
@@ -112,6 +115,8 @@ export class ConnectionManager extends EventEmitter {
   /** Disconnects from the PLC, cancelling any pending reconnect and draining the queue. */
   async disconnect(): Promise<void> {
     this.manualDisconnect = true;
+    // Before the backend is awaited, so a request failing meanwhile already counts as stale
+    this.epoch++;
     this.clearReconnectTimer();
     this.rejectPendingQueue();
 
@@ -160,6 +165,7 @@ export class ConnectionManager extends EventEmitter {
     if (this.processing || this.queue.length === 0) return;
 
     this.processing = true;
+    const epoch = this.epoch;
 
     while (this.queue.length > 0) {
       const entry = this.queue.shift();
@@ -173,10 +179,16 @@ export class ConnectionManager extends EventEmitter {
             timeoutHandle = setTimeout(() => reject(new S7Error(S7ErrorCode.REQUEST_TIMEOUT, 'Request timed out')), timeoutMs);
           }),
         ]);
-        this.lastActivity = Date.now();
         entry.resolve(result);
+        // The connection this loop worked on has gone (a reconnect, or disconnect()), which also
+        // cleared the queue; leave anything queued since to the loop for the new connection
+        if (epoch !== this.epoch) return;
+        this.lastActivity = Date.now();
       } catch (err) {
         entry.reject(err);
+        // A late failure from a connection that has since been dropped or replaced (a timeout,
+        // or the old socket closing) must not take down the connection that replaced it
+        if (epoch !== this.epoch) return;
         if (this.isConnectionError(err)) {
           this.recordError(err);
           this.handleConnectionLoss();
@@ -244,6 +256,7 @@ export class ConnectionManager extends EventEmitter {
     const oldState = this.state;
     this.state = newState;
     if (oldState !== newState) this.stateSince = Date.now();
+    if (oldState === 'connected' && newState !== 'connected') this.epoch++;
     if (newState === 'connected') {
       this.startHealthCheck();
     } else {

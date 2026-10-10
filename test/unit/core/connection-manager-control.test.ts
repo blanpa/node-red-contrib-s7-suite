@@ -1,6 +1,7 @@
 import { ConnectionManager } from '../../../src/core/connection-manager';
 import { MockBackend } from '../../helpers/mock-backend';
 import { S7ConnectionConfig } from '../../../src/types/s7-connection';
+import { S7Error, S7ErrorCode } from '../../../src/utils/error-codes';
 
 // connect / disconnect / reconnect / status as driven by msg.action, and Auto connect off
 describe('ConnectionManager - connection control', () => {
@@ -121,6 +122,63 @@ describe('ConnectionManager - connection control', () => {
       await first;
       await again;
       expect(manager.getState()).toBe('connected');
+    });
+
+    // A request still in flight when the connection is replaced can fail later: on the real PLC,
+    // the old snap7 client reported "Connection timed out" about 3 s after the reconnect
+    describe('a request in flight on the connection it replaces', () => {
+      const inFlight = () => {
+        const pending: { resolve?: (v: unknown) => void; reject?: (e: unknown) => void } = {};
+        const realRead = backend.read.bind(backend);
+        let first = true;
+        backend.read = (items) => {
+          if (!first) return realRead(items);
+          first = false;
+          return new Promise((resolve, reject) => Object.assign(pending, { resolve, reject }));
+        };
+        return pending;
+      };
+
+      it('does not take down the new connection when it fails late', async () => {
+        await manager.connect();
+        const pending = inFlight();
+        const reading = manager.read([]);
+        await sleep(5);
+        await manager.reconnect();
+        const states: string[] = [];
+        manager.on('stateChanged', ({ newState }) => states.push(newState));
+
+        pending.reject!(new S7Error(S7ErrorCode.DISCONNECTED, 'snap7 read failed: Connection timed out'));
+        await expect(reading).rejects.toThrow('Connection timed out');
+        await sleep(100);
+        expect(states).toEqual([]);
+        expect(manager.getState()).toBe('connected');
+        expect(manager.getStatus().lastError).toBeNull();
+        // The new connection keeps working
+        await expect(manager.read([])).resolves.toEqual([]);
+      });
+
+      it('passes on a late success, and leaves the new queue to the new connection', async () => {
+        await manager.connect();
+        const pending = inFlight();
+        const stale = manager.read([]);
+        await sleep(5);
+        await manager.reconnect();
+        const fresh = manager.read([]);
+        pending.resolve!([]);
+        await expect(stale).resolves.toEqual([]);
+        await expect(fresh).resolves.toEqual([]);
+        expect(manager.getState()).toBe('connected');
+      });
+
+      it('still treats a failure on the current connection as a lost link', async () => {
+        await manager.connect();
+        const pending = inFlight();
+        const reading = manager.read([]);
+        pending.reject!(new S7Error(S7ErrorCode.DISCONNECTED, 'Connection lost'));
+        await expect(reading).rejects.toThrow('Connection lost');
+        expect(manager.getState()).toBe('reconnecting');
+      });
     });
   });
 

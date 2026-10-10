@@ -145,6 +145,28 @@ export class NodeS7Backend implements IS7Backend {
     return new S7Error(S7ErrorCode.DISCONNECTED, `nodes7 ${op} failed: connection to the PLC was lost`);
   }
 
+  /**
+   * What the error in a nodes7 callback means for `conn`, the connection the request was sent on.
+   * Returns the error to reject with, or null to carry on (no error, or one the caller describes).
+   * - No error: carry on, even if that connection has since been dropped. The PLC answered, so a
+   *   write was made; failing it would invite the flow to write it again.
+   * - An error from a connection that has been dropped or replaced: READ_FAILED / WRITE_FAILED.
+   *   The connection manager dropped it on purpose (a timeout or a reconnect), and a
+   *   connection-class code would make it tear down the connection that replaced it.
+   * - An error with the link down: DISCONNECTED, so the connection manager reconnects.
+   */
+  private callbackError(conn: unknown, err: unknown, op: 'read' | 'write'): S7Error | null {
+    if (!err) return null;
+    if (this.conn !== conn) {
+      return new S7Error(
+        op === 'write' ? S7ErrorCode.WRITE_FAILED : S7ErrorCode.READ_FAILED,
+        `nodes7 ${op} failed: the connection was closed before the PLC answered`,
+        causeOf(err),
+      );
+    }
+    return this.linkLost() ? this.lostError(op) : null;
+  }
+
   private assertConnected(op: string): void {
     if (!this.conn || !this.connected) {
       throw new S7Error(S7ErrorCode.DISCONNECTED, 'Not connected');
@@ -185,23 +207,27 @@ export class NodeS7Backend implements IS7Backend {
       return toResults({});
     }
 
+    // Keep the connection this read was sent on: disconnect() can drop it (this.conn = null)
+    // before nodes7's own timeout calls back, so the callback must not use this.conn
+    const conn = this.conn;
     for (const addr of addrList) {
-      this.conn.addItems(addr);
+      conn.addItems(addr);
     }
 
     const removeAll = (): void => {
       for (const addr of addrList) {
-        this.conn.removeItems(addr);
+        conn.removeItems(addr);
       }
     };
 
     return new Promise<S7ReadResult[]>((resolve, reject) => {
       try {
-        this.conn.readAllItems((err: unknown, values: Record<string, unknown>) => {
+        conn.readAllItems((err: unknown, values: Record<string, unknown>) => {
           removeAll();
 
-          if (err && this.linkLost()) {
-            reject(this.lostError('read'));
+          const failure = this.callbackError(conn, err, 'read');
+          if (failure) {
+            reject(failure);
             return;
           }
           // nodes7 sets one flag for the whole read but still returns every item. When some of
@@ -254,22 +280,27 @@ export class NodeS7Backend implements IS7Backend {
       }
     }
 
+    // Reading string headers above may have waited on the PLC, so check the link again, then keep
+    // the connection this write is sent on (see read())
+    this.assertConnected('write');
+    const conn = this.conn;
     for (const addr of names) {
-      this.conn.addItems(addr);
+      conn.addItems(addr);
     }
 
     const removeAll = (): void => {
       for (const name of names) {
-        this.conn.removeItems(name);
+        conn.removeItems(name);
       }
     };
 
     return new Promise<void>((resolve, reject) => {
       try {
-        this.conn.writeItems(names, values, (err: unknown) => {
+        conn.writeItems(names, values, (err: unknown) => {
           removeAll();
-          if (err && this.linkLost()) {
-            reject(this.lostError('write'));
+          const failure = this.callbackError(conn, err, 'write');
+          if (failure) {
+            reject(failure);
           } else if (err) {
             reject(new S7Error(S7ErrorCode.WRITE_FAILED, `nodes7 write failed: ${failureDetail(err, names)}`, causeOf(err)));
           } else {
@@ -328,13 +359,16 @@ export class NodeS7Backend implements IS7Backend {
       addr = `${areaPrefix}B${start}.${length}`;
     }
 
-    this.conn.addItems(addr);
+    // Keep the connection this read is sent on (see read())
+    const conn = this.conn;
+    conn.addItems(addr);
 
     return new Promise<Buffer>((resolve, reject) => {
-      this.conn.readAllItems((err: unknown, values: Record<string, unknown>) => {
-        this.conn.removeItems(addr);
-        if (err && this.linkLost()) {
-          reject(this.lostError('read'));
+      conn.readAllItems((err: unknown, values: Record<string, unknown>) => {
+        conn.removeItems(addr);
+        const failure = this.callbackError(conn, err, 'read');
+        if (failure) {
+          reject(failure);
           return;
         }
         if (err) {

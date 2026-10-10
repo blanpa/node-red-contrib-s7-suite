@@ -21,6 +21,8 @@ export class Poller extends EventEmitter {
   private items: Map<string, PollerItem> = new Map();
   private config: PollerConfig;
   private readFn: (() => Promise<Map<string, unknown>>) | null = null;
+  // Bumped by stop(), so values from a read still in flight when the poller stops are dropped
+  private run = 0;
 
   constructor(config: PollerConfig) {
     super();
@@ -45,6 +47,7 @@ export class Poller extends EventEmitter {
   }
 
   stop(): void {
+    this.run++;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -66,9 +69,11 @@ export class Poller extends EventEmitter {
 
   private async poll(): Promise<void> {
     if (!this.readFn) return;
+    const run = this.run;
 
     try {
       const values = await this.readFn();
+      if (run !== this.run) return;
       for (const [name, value] of values) {
         const item = this.items.get(name);
         if (!item) continue;
@@ -81,7 +86,12 @@ export class Poller extends EventEmitter {
         }
       }
     } catch (err) {
-      this.emit('error', err);
+      // Report the failure even if the poller has stopped: a timeout or lost link stops it (the
+      // connection goes to reconnecting) in the same tick the read is rejected, and that error is
+      // the one the user needs to see. Only skip it when nobody is listening: s7-trigger removes
+      // its listeners on close, and an 'error' event with no listener throws, which would take
+      // Node-RED down.
+      if (this.listenerCount('error') > 0) this.emit('error', err);
     }
   }
 
