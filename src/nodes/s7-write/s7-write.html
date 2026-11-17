@@ -14,7 +14,14 @@
         }
       },
       mode: { value: 'single' },
-      schema: { value: '[]' },
+      // A field of the node's own schema that was saved without an offset makes the node invalid
+      schema: {
+        value: '[]',
+        validate: function (v) {
+          var used = this.mode === 'struct' && (this.schemaType || 'config') === 'config';
+          return !used || s7SuiteSchemaComplete(v);
+        }
+      },
       // typedInput type of address: 'str' (a fixed address) or msg/flow/global/env
       addressType: { value: 'str' },
       // Where the schema comes from: 'config' (Fixed: set in this node) or msg/flow/global
@@ -75,6 +82,7 @@
             .append(nameInput, typeSelect, offsetInput, bitInput, lenInput)
             .appendTo(row);
           updateVisibility();
+          s7SuiteRequireOffset(nameInput, offsetInput);
           // The Add button passes no data; loading a saved schema always does
           if (Object.keys(data).length === 0) {
             setTimeout(function () { nameInput.trigger('focus'); }, 0);
@@ -196,24 +204,7 @@
 
       // Save the schema list (struct mode); the address is the shared typedInput field
       if (mode === 'struct') {
-        var schemaItems = $('#s7w-schema-list').editableList('items');
-        var schema = [];
-        schemaItems.each(function () {
-          var inputs = $(this).find('input');
-          var select = $(this).find('select');
-          var name = $(inputs[0]).val();
-          var type = select.val();
-          var offset = parseInt($(inputs[1]).val(), 10);
-          var bit = $(inputs[2]).val();
-          var len = $(inputs[3]).val();
-          if (name && !isNaN(offset)) {
-            var field = { name: name, type: type, offset: offset };
-            if (type === 'BOOL' && bit !== '') field.bit = parseInt(bit, 10);
-            if ((type === 'STRING' || type === 'WSTRING') && len !== '') field.length = parseInt(len, 10);
-            schema.push(field);
-          }
-        });
-        this.schema = JSON.stringify(schema);
+        this.schema = s7SuiteReadSchemaList($('#s7w-schema-list'));
       }
     },
     oneditresize: function (size) {
@@ -385,7 +376,9 @@
  {"name":"motorOn","type":"BOOL","offset":6,"bit":0}]</pre>
     Only fields present in <code>msg.payload</code> are written; others are left unchanged.
     <b>Add field</b> starts the new field from the one above it: the same type, and the same length
-    for a string, at the next free offset, or the next bit for a BOOL. Only the name is left to type.</dd>
+    for a string, at the next free offset, or the next bit for a BOOL. The first field starts at offset 0.
+    Only the name is left to type. A field needs a name and an offset: a row without a name is not saved,
+    and a named field without an offset is kept but marks the node as not properly configured until it has one.</dd>
   </dl>
   <h4>Address Formats</h4>
   <ul>

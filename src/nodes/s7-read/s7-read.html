@@ -9,7 +9,14 @@
       labels: { value: '{}' },
       outputMode: { value: 'single' },
       topic: { value: '' },
-      schema: { value: '[]' },
+      // A field of the node's own schema that was saved without an offset makes the node invalid
+      schema: {
+        value: '[]',
+        validate: function (v) {
+          var used = this.outputMode === 'struct' && (this.schemaType || 'config') === 'config';
+          return !used || s7SuiteSchemaComplete(v);
+        }
+      },
       // Where the addresses and schema come from: 'config' (Fixed: set in this node) or msg/flow/global/env
       addressType: { value: 'config' },
       addressProp: { value: '' },
@@ -28,6 +35,11 @@
     oneditprepare: function () {
       var node = this;
       s7SuiteStatusDot('#node-input-server', '#s7r-status-dot');
+
+      // A node saved without an output mode (or with one this version doesn't know) reads as Single
+      // value, as the runtime treats it. Left blank, the select would hide the address list and
+      // Done would save over its addresses.
+      if (!$('#node-input-outputMode').val()) $('#node-input-outputMode').val('single');
 
       // editableList for addresses with optional labels
       var addrList = $('#s7r-address-list').css({ 'min-height': '150px' }).editableList({
@@ -404,6 +416,7 @@
             .append(nameInput, typeSelect, offsetInput, bitInput, lenInput)
             .appendTo(row);
           updateVisibility();
+          s7SuiteRequireOffset(nameInput, offsetInput);
           // The Add button passes no data; loading a saved schema always does
           if (Object.keys(data).length === 0) {
             setTimeout(function () { nameInput.trigger('focus'); }, 0);
@@ -462,6 +475,7 @@
       }
 
       $('#node-input-outputMode').on('change', function () {
+        carryAddressAcross();
         updateModeUI();
         // A different list (or none) is now visible; let oneditresize size it
         RED.tray.resize();
@@ -476,6 +490,35 @@
 
       function isAddressListMode(mode) {
         return mode === 'single' || mode === 'object' || !mode;
+      }
+
+      // Single value and Object read the address list; Raw Buffer, Struct and Bit Array read one
+      // address, shown in a field of its own. Done saves whichever the output mode shows. So when
+      // the mode changes from one kind to the other, carry the first address across: the single
+      // field would otherwise open empty and Done would save that over the list.
+      var listShown = isAddressListMode($('#node-input-outputMode').val());
+      function carryAddressAcross() {
+        var showList = isAddressListMode($('#node-input-outputMode').val());
+        if (showList === listShown) return;
+        listShown = showList;
+        var single = $('#s7r-single-address-input');
+        // 'items' holds a jQuery object per row, so wrap a row before using it
+        var rows = addrList.editableList('items');
+        // The list's first address: the first row that has one
+        var firstFilled = null;
+        rows.each(function () {
+          if (!firstFilled && ($(this).find('.s7r-addr').val() || '').trim()) firstFilled = $(this);
+        });
+        if (showList) {
+          // Back to the list: an address typed in the single field replaces the one it came from
+          var typed = (single.val() || '').trim();
+          if (!typed) return;
+          if (firstFilled) firstFilled.find('.s7r-addr').val(typed);
+          else if (rows.length > 0) $(rows[0]).find('.s7r-addr').val(typed);
+          else addrList.editableList('addItem', { address: typed });
+        } else if (firstFilled) {
+          single.val(firstFilled.find('.s7r-addr').val().trim());
+        }
       }
 
       // Where the addresses and schema come from: Fixed (the lists in this node), or a property the
@@ -545,24 +588,7 @@
 
       // Save schema
       if (mode === 'struct') {
-        var schemaItems = $('#s7r-schema-list').editableList('items');
-        var schema = [];
-        schemaItems.each(function () {
-          var inputs = $(this).find('input');
-          var select = $(this).find('select');
-          var name = $(inputs[0]).val();
-          var type = select.val();
-          var offset = parseInt($(inputs[1]).val(), 10);
-          var bit = $(inputs[2]).val();
-          var len = $(inputs[3]).val();
-          if (name && !isNaN(offset)) {
-            var field = { name: name, type: type, offset: offset };
-            if (type === 'BOOL' && bit !== '') field.bit = parseInt(bit, 10);
-            if ((type === 'STRING' || type === 'WSTRING') && len !== '') field.length = parseInt(len, 10);
-            schema.push(field);
-          }
-        });
-        this.schema = JSON.stringify(schema);
+        this.schema = s7SuiteReadSchemaList($('#s7r-schema-list'));
       }
     }
   });
@@ -734,6 +760,11 @@
     Use <b>Import CSV/Excel/CFG/XML</b> to bulk-import tag lists from a TIA Portal tag table Export (.xlsx, .xml or .sdf), Step 7 symbol exports (.csv/.tsv), or STEP 7 V5 hardware configuration exports (.cfg). The CSV importer auto-detects column names (<code>name</code>/<code>symbol</code>/<code>tag</code> and <code>address</code>) and supports tab, semicolon and comma separators. IEC-style addresses with <code>%</code> prefix are converted automatically.<br>
     <b>.cfg import</b> reads the full hardware config exported from SIMATIC Manager via <em>Station → Export…</em> and extracts all symbolic I/O — including modules behind Profibus/Profinet couplers that a live browse cannot discover. Digital inputs/outputs become <code>I0.3</code>/<code>Q0.3</code> addresses, analog channels become <code>IW272</code>/<code>QW272</code>.<br>
     <b>TIA Portal .xml / .sdf import</b> reads a tag table exported from TIA Portal via <em>PLC tags → &lt;table&gt; → Export</em> (Save as type Xml or Sdf). The .xml import also reads SimaticML (<code>SW.Tags.PlcTagTable</code>) as written by TIA Portal Openness; for SimaticML, multilingual comments prefer <code>de-DE</code>, then <code>en-US</code>. User constants (no address) are skipped.</dd>
+    <dt>Raw Buffer, Struct, Bit Array</dt>
+    <dd>These read one address, entered in a single <b>Address</b> field in place of the list. Changing
+    <b>Output</b> to one of them carries the list's first address into that field, and changing back
+    puts the field's address back in the list. The list's other addresses stay while the node is open, but
+    <b>Done</b> saves only what the chosen output shows.</dd>
     <dt>Raw Buffer</dt>
     <dd>Reads N bytes and returns a Node.js Buffer. Address format: <code>DB1,BYTE0.0.100</code> (100 bytes from offset 0). Useful for JSON strings in DBs or custom binary parsing.</dd>
     <dt>Struct (schema)</dt>
@@ -743,7 +774,9 @@
  {"name":"active","type":"BOOL","offset":6,"bit":0}]</pre>
     Returns: <code>{"temp":23.5,"count":42,"active":true}</code>
     <b>Add field</b> starts the new field from the one above it: the same type, and the same length
-    for a string, at the next free offset, or the next bit for a BOOL. Only the name is left to type.</dd>
+    for a string, at the next free offset, or the next bit for a BOOL. The first field starts at offset 0.
+    Only the name is left to type. A field needs a name and an offset: a row without a name is not saved,
+    and a named field without an offset is kept but marks the node as not properly configured until it has one.</dd>
     <dt>Bit Array</dt>
     <dd>Reads N bytes and returns an array of booleans (LSB first per byte). Address format: <code>DB1,BYTE0.0.2</code> (2 bytes = 16 bits). Useful for status words and bitmasks.</dd>
   </dl>
