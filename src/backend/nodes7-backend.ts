@@ -1,9 +1,9 @@
 import { IS7Backend } from './s7-backend.interface';
 import { S7ConnectionConfig } from '../types/s7-connection';
-import { S7ReadItem, S7ReadResult, S7WriteItem, AREA_CODE_MAP } from '../types/s7-address';
+import { S7Address, S7ReadItem, S7ReadResult, S7WriteItem, AREA_CODE_MAP } from '../types/s7-address';
 import { S7BlockInfo, S7BlockList, S7BlockType } from '../types/s7-browse';
 import { toNodes7Address } from '../core/address-parser';
-import { arrayValues, stringWrite } from '../core/data-converter';
+import { addressByteLength, arrayValues, stringWrite, writeAddressValue } from '../core/data-converter';
 import { S7Error, S7ErrorCode, describeError, describeRawRequest } from '../utils/error-codes';
 
 const BAD_QUALITY_HINT = ' (check that the address exists and is within the area or DB size)';
@@ -25,6 +25,19 @@ function isBadQuality(v: unknown): boolean {
 }
 
 const causeOf = (err: unknown): Error | undefined => (err instanceof Error ? err : undefined);
+
+/** A write of more than one bit, which nodes7 itself would send as whole bytes (see prepareBitArrayWrite). */
+const isBitArray = (item: S7WriteItem): boolean =>
+  item.address.dataType === 'BOOL' && (item.address.arrayLength ?? 1) > 1;
+
+/**
+ * The nodes7 item that writes `bytes` from byte `at` of the address's area or DB. A single byte is
+ * a plain BYTE; nodes7 takes anything longer as an array.
+ */
+function byteItem(addr: S7Address, at: number, bytes: ArrayLike<number>): { name: string; value: unknown } {
+  const name = addr.area === 'DB' ? `DB${addr.dbNumber},BYTE${at}` : `${addr.area}B${at}`;
+  return bytes.length === 1 ? { name, value: bytes[0] } : { name: `${name}.${bytes.length}`, value: Array.from(bytes) };
+}
 
 /**
  * nodes7's isoConnectionState when the link is up. It drops to 0 as soon as the socket closes
@@ -256,14 +269,45 @@ export class NodeS7Backend implements IS7Backend {
   async write(items: S7WriteItem[]): Promise<void> {
     this.assertConnected('write');
 
-    // Strings are sized from their header first, so do that before this write's items are added
+    // Refuse the whole write before anything is read or sent: an array of the wrong length (nodes7
+    // would pad a short one with zeros; the snap7 backend refuses it too), or a type nodes7 would
+    // drop (see NODES7_DB_TYPES). Strings are checked against their header when they are sized.
+    for (const item of items) {
+      const type = item.address.dataType;
+      if (type === 'STRING' || type === 'WSTRING') continue;
+      if (item.address.arrayLength !== undefined) arrayValues(item.address, item.value);
+      const unsupported = nodes7Unsupported(item.nodes7Address ?? toNodes7Address(item.address));
+      if (unsupported) {
+        throw new S7Error(S7ErrorCode.WRITE_FAILED, unsupported);
+      }
+    }
+
+    // A bit array is sent as the bytes it spans, as they were read just before. Another item of the
+    // same request that changes one of those bytes (a bit in it, or a second bit array) would be
+    // undone by them, so a write with a bit array sends its items one at a time, in order, as the
+    // snap7 backend always does.
+    if (items.length > 1 && items.some(isBitArray)) {
+      for (const item of items) {
+        await this.send([item]);
+      }
+      return;
+    }
+    return this.send(items);
+  }
+
+  /** Sends items that write() has checked, in one nodes7 request. */
+  private async send(items: S7WriteItem[]): Promise<void> {
+    this.assertConnected('write');
+
+    // Strings and bit arrays read from the PLC first, so do that before this write's items are added
     const prepared: Array<{ name: string; value: unknown }> = [];
     for (const item of items) {
       const type = item.address.dataType;
       if (type === 'STRING' || type === 'WSTRING') {
         prepared.push(await this.prepareStringWrite(item));
+      } else if (isBitArray(item)) {
+        prepared.push(await this.prepareBitArrayWrite(item));
       } else {
-        // nodes7 would pad a short array with zeros; refuse it, as the snap7 backend does
         const value = item.address.arrayLength !== undefined ? Array.from(arrayValues(item.address, item.value)) : item.value;
         prepared.push({ name: item.nodes7Address ?? toNodes7Address(item.address), value });
       }
@@ -272,16 +316,8 @@ export class NodeS7Backend implements IS7Backend {
     const names = prepared.map((p) => p.name);
     const values = prepared.map((p) => p.value);
 
-    // Refuse the whole write rather than let nodes7 drop part of it (see NODES7_DB_TYPES)
-    for (const addr of names) {
-      const unsupported = nodes7Unsupported(addr);
-      if (unsupported) {
-        throw new S7Error(S7ErrorCode.WRITE_FAILED, unsupported);
-      }
-    }
-
-    // Reading string headers above may have waited on the PLC, so check the link again, then keep
-    // the connection this write is sent on (see read())
+    // Reading from the PLC above may have waited on it, so check the link again, then keep the
+    // connection this write is sent on (see read())
     this.assertConnected('write');
     const conn = this.conn;
     for (const addr of names) {
@@ -329,11 +365,24 @@ export class NodeS7Backend implements IS7Backend {
     const header = await this.readRawArea(areaCode, addr.dbNumber, addr.offset, dataType === 'WSTRING' ? 4 : 2);
     const where = `${addr.area === 'DB' ? `DB${addr.dbNumber}` : addr.area} offset ${addr.offset}`;
     const { start, bytes } = stringWrite(dataType, item.value, header, addr.stringLength, where);
+    return byteItem(addr, addr.offset + start, bytes);
+  }
 
-    const at = addr.offset + start;
-    const name = addr.area === 'DB' ? `DB${addr.dbNumber},BYTE${at}` : `${addr.area}B${at}`;
-    // A single byte (an empty string) is a plain BYTE; nodes7 takes anything longer as an array
-    return bytes.length === 1 ? { name, value: bytes[0] } : { name: `${name}.${bytes.length}`, value: [...bytes] };
+  /**
+   * Turns a write of several bits into a BYTE write of the bytes they span, read from the PLC
+   * first so the other bits in them are kept, as the snap7 backend does. nodes7 writes a bit array
+   * as whole bytes made from the new bits alone, which clears every other bit in them: 8 x true
+   * to DB3,X900.3.8 over 01 80 wrote f8 07 instead of f9 87 (#69). A single bit it writes as a bit.
+   */
+  private async prepareBitArrayWrite(item: S7WriteItem): Promise<{ name: string; value: unknown }> {
+    const addr = item.address;
+    const areaCode = AREA_CODE_MAP[addr.area];
+    if (areaCode === undefined) {
+      throw new S7Error(S7ErrorCode.WRITE_FAILED, `Unsupported area: ${addr.area}`);
+    }
+    const bytes = Buffer.from(await this.readRawArea(areaCode, addr.dbNumber, addr.offset, addressByteLength(addr)));
+    writeAddressValue(bytes, 0, addr, item.value);
+    return byteItem(addr, addr.offset, bytes);
   }
 
   async readRawArea(area: number, dbNumber: number, start: number, length: number): Promise<Buffer> {
