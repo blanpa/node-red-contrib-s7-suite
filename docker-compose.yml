@@ -12,7 +12,7 @@ services:
       - NODE_RED_PORT=1885
     entrypoint: >
       sh -c "
-        cd /opt/s7-suite && npm pack --pack-destination /tmp &&
+        cd /opt/s7-suite && npm pack --ignore-scripts --pack-destination /tmp &&
         cd /usr/src/node-red &&
         npm install /tmp/node-red-contrib-s7-suite-*.tgz &&
         cp /opt/s7-suite/examples/test-flows.json /data/flows.json 2>/dev/null;

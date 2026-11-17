@@ -269,6 +269,15 @@ cd ~/.node-red
 npm install node-red-contrib-s7-suite
 ```
 
+### A branch, to try a fix before it is released
+
+```bash
+cd ~/.node-red
+npm install blanpa/node-red-contrib-s7-suite#<branch>
+```
+
+Then restart Node-RED and reload the editor (Ctrl+F5). The package is built while it installs, which loads the build tools first; on a Raspberry Pi that takes a few minutes. Newer npm versions warn that the package has an install script (`prepare`); that script is the build. To go back to the release, run `npm install node-red-contrib-s7-suite` in the same directory.
+
 ### Docker
 
 ```bash
