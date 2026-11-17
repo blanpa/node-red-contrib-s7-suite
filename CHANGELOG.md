@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **A branch can be installed to try a fix before it is released**: `npm install blanpa/node-red-contrib-s7-suite#<branch>` in the Node-RED user directory. The package now builds itself when it is installed from GitHub (a `prepare` script, which replaces `prepublishOnly`). See *Installation* in the README
+
 ## [0.0.10] - 2026-10-10
 
 ### Upgrade notes
