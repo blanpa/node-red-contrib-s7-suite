@@ -7,6 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **A branch can be installed to try a fix before it is released**: `npm install blanpa/node-red-contrib-s7-suite#<branch>` in the Node-RED user directory. The package now builds itself when it is installed from GitHub (a `prepare` script, which replaces `prepublishOnly`). See *Installation* in the README
 
+### Fixed
+- **A struct schema field without an offset disappeared on Done** in `s7-read` and `s7-write` (#83): a field with a name and a type but no offset was left out of the saved schema without a word. The first field now starts at offset 0, so a name and a type are enough. A named field whose offset is empty is kept: its offset is marked in the editor, the node shows as not properly configured, and the runtime reports `Schema field "x" has invalid offset` as before. It is not saved at offset 0, which in `s7-write` would write to bytes nobody chose
+- **`s7-read` lost its addresses when Output was changed** (#83): changing from Single value or Object to Raw Buffer, Struct or Bit Array showed an empty address field, and Done saved that over the address list. The first address now goes with the change, in both directions. Those three outputs read one address, so Done still saves only that one
+- **`s7-read` saved without an output mode lost its addresses on Done**: a node from a flow written before the setting existed, or by hand, opened with a blank Output and no address list. It now opens as Single value, which is how the runtime already read it
+
 ## [0.0.10] - 2026-10-10
 
 ### Upgrade notes

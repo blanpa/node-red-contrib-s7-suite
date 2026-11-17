@@ -233,12 +233,17 @@
   };
 
   // Start a new struct schema row from the one above it: the same type (and string length) at
-  // the next free offset, or the next bit for a BOOL. The name is left empty for the user to type.
-  // `field` holds the new row's { type, offset, bit, len } inputs. Rows are read by position, as
-  // the nodes' oneditsave does: inputs are name, offset, bit, length, and one select for the type.
+  // the next free offset, or the next bit for a BOOL. The first row starts at offset 0. The name
+  // is left empty for the user to type. `field` holds the new row's { type, offset, bit, len }
+  // inputs. Rows are read by position, as s7SuiteReadSchemaList does: inputs are name, offset,
+  // bit, length, and one select for the type.
   window.s7SuiteSeedSchemaField = function (row, field) {
     var previous = row.closest('li').prev('li');
-    if (!previous.length) return;
+    if (!previous.length) {
+      // change: the row's missing-offset mark listens for it
+      field.offset.val(0).trigger('change');
+      return;
+    }
     var inputs = previous.find('input');
     var query = {
       type: previous.find('select').val(),
@@ -251,10 +256,71 @@
       // Leave a row the user has already started filling in
       if (!next || next.offset === undefined || field.offset.val() !== '') return;
       field.type.val(next.type).trigger('change');
-      field.offset.val(next.offset);
+      field.offset.val(next.offset).trigger('change');
       field.bit.val(next.bit !== undefined ? next.bit : '');
       field.len.val(next.length !== undefined ? next.length : '');
     });
+  };
+
+  // The schema to save for a struct schema list's rows, each { name, type, offset, bit, length } as
+  // the inputs hold them (strings). A row without a name is an unused row and is left out. A named
+  // row is always kept: one without an offset is saved without one, which s7SuiteSchemaComplete
+  // and the runtime both report. Leaving it out would lose the field without a word, and saving
+  // it at offset 0 would read or write bytes the user never chose.
+  window.s7SuiteSchemaFromRows = function (rows) {
+    var schema = [];
+    rows.forEach(function (row) {
+      if (!row.name) return;
+      var field = { name: row.name, type: row.type };
+      var offset = parseInt(row.offset, 10);
+      if (!isNaN(offset)) field.offset = offset;
+      var bit = parseInt(row.bit, 10);
+      if (row.type === 'BOOL' && !isNaN(bit)) field.bit = bit;
+      var length = parseInt(row.length, 10);
+      if ((row.type === 'STRING' || row.type === 'WSTRING') && !isNaN(length)) field.length = length;
+      schema.push(field);
+    });
+    return schema;
+  };
+
+  // The schema to save for a struct schema editableList, as a JSON string
+  window.s7SuiteReadSchemaList = function (list) {
+    var rows = list.editableList('items').map(function () {
+      var inputs = $(this).find('input');
+      return {
+        name: $(inputs[0]).val(),
+        type: $(this).find('select').val(),
+        offset: $(inputs[1]).val(),
+        bit: $(inputs[2]).val(),
+        length: $(inputs[3]).val()
+      };
+    }).get();
+    return JSON.stringify(s7SuiteSchemaFromRows(rows));
+  };
+
+  // Whether every field of a saved schema (the JSON string a node stores) has the offset the
+  // runtime needs: a number, 0 or more. For the schema's validate: a field saved without one
+  // makes the node invalid until it is given one. Anything that isn't a schema array is left to
+  // the runtime to report.
+  window.s7SuiteSchemaComplete = function (schemaJson) {
+    var schema;
+    try { schema = JSON.parse(schemaJson || '[]'); } catch (e) { return true; }
+    if (!Array.isArray(schema)) return true;
+    return schema.every(function (field) {
+      return !!field && typeof field.offset === 'number' && field.offset >= 0;
+    });
+  };
+
+  // Mark a schema row's offset input while the field has a name but no usable offset, so a field
+  // that would be saved incomplete shows it before Done
+  window.s7SuiteRequireOffset = function (nameInput, offsetInput) {
+    function mark() {
+      var offset = offsetInput.val();
+      offsetInput.toggleClass('input-error', nameInput.val() !== '' && (offset === '' || Number(offset) < 0));
+    }
+    nameInput.on('input change', mark);
+    offsetInput.on('input change', mark);
+    mark();
   };
 
   // Validator for a num/env TypedInput: a whole number in [min, max] (any number in range with
