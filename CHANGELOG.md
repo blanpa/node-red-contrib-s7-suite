@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **A branch can be installed to try a fix before it is released**: `npm install blanpa/node-red-contrib-s7-suite#<branch>` in the Node-RED user directory. The package now builds itself when it is installed from GitHub (a `prepare` script, which replaces `prepublishOnly`). See *Installation* in the README
 
+### Fixed
+- **nodes7 backend: writing a bit array cleared the other bits of its bytes** (#69). nodes7 writes an address like `DB3,X900.3.8` or `M210.3.8` as whole bytes made from the new bits alone. With `01 80` in DB3 bytes 900 and 901, writing eight `true` gave `f8 07` instead of `f9 87`. The bytes are now read first and written back with only those bits changed, as on snap7. A write that has a bit array and other values sends them one at a time, in order, so one can't undo another. Single bits were not affected
+- **nodes7 backend: a write is refused before anything is read** when one of its values has a type nodes7 can't write or an array of the wrong length. A string in the same write used to have its header read from the PLC first
+
 ## [0.0.10] - 2026-10-10
 
 ### Upgrade notes

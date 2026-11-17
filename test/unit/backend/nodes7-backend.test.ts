@@ -526,6 +526,97 @@ describe('NodeS7Backend', () => {
       ).rejects.toThrow('STRING at DB1 offset 0 holds 5 characters; the value has 8');
       expect(mockWriteItems).not.toHaveBeenCalled();
     });
+
+    it('refuses a type nodes7 would drop before reading a string header in the same write', async () => {
+      await expect(
+        backend.write([
+          { name: 's', address: { area: 'DB', dbNumber: 1, dataType: 'STRING', offset: 0, bitOffset: 0 }, value: 'hi' },
+          { name: 'u', address: { area: 'DB', dbNumber: 1, dataType: 'USINT', offset: 300, bitOffset: 0 }, value: 1 },
+        ]),
+      ).rejects.toThrow('nodes7 has no USINT type');
+      expect(mockReadAllItems).not.toHaveBeenCalled();
+      expect(mockWriteItems).not.toHaveBeenCalled();
+    });
+
+    // nodes7 writes a bit array as whole bytes made from the new bits alone, so the backend reads
+    // the bytes first and sends them back with the bits changed (#69)
+    describe('bit arrays', () => {
+      const bits = (area: 'DB' | 'M', offset: number, bitOffset: number, arrayLength: number) =>
+        ({ area, dbNumber: area === 'DB' ? 3 : 0, dataType: 'BOOL' as const, offset, bitOffset, arrayLength });
+
+      beforeEach(() => {
+        mockWriteItems.mockImplementation((_n: unknown, _v: unknown, cb: Function) => cb());
+      });
+
+      it('keeps the other bits of the bytes a DB bit array touches', async () => {
+        headerIs([0x01, 0x80]);
+
+        await backend.write([{ name: 'b', address: bits('DB', 900, 3, 8), value: Array(8).fill(true) }]);
+
+        expect(mockAddItems).toHaveBeenCalledWith('DB3,BYTE900.2');
+        expect(mockWriteItems).toHaveBeenCalledWith(['DB3,BYTE900.2'], [[0xf9, 0x87]], expect.any(Function));
+      });
+
+      it('keeps the other bits of the bytes an M bit array touches', async () => {
+        headerIs([0xff, 0xff]);
+
+        await backend.write([{ name: 'b', address: bits('M', 210, 3, 8), value: Array(8).fill(false) }]);
+
+        expect(mockAddItems).toHaveBeenCalledWith('MB210.2');
+        expect(mockWriteItems).toHaveBeenCalledWith(['MB210.2'], [[0x07, 0xf8]], expect.any(Function));
+      });
+
+      it('writes bits within one byte as a plain BYTE', async () => {
+        headerIs([0x81]);
+
+        await backend.write([{ name: 'b', address: bits('DB', 0, 2, 3), value: [true, false, true] }]);
+
+        expect(mockWriteItems).toHaveBeenCalledWith(['DB3,BYTE0'], [0x95], expect.any(Function));
+      });
+
+      it('still writes a single bit as a bit, without reading', async () => {
+        await backend.write([
+          { name: 'b', address: { area: 'DB', dbNumber: 3, dataType: 'BOOL', offset: 900, bitOffset: 3 }, value: true },
+        ]);
+
+        expect(mockReadAllItems).not.toHaveBeenCalled();
+        expect(mockWriteItems).toHaveBeenCalledWith(['DB3,X900.3'], [true], expect.any(Function));
+      });
+
+      it('refuses the wrong number of bits before reading anything', async () => {
+        await expect(backend.write([{ name: 'b', address: bits('DB', 900, 3, 8), value: [true, true, true] }]))
+          .rejects.toThrow('needs 8 values; got 3');
+        expect(mockReadAllItems).not.toHaveBeenCalled();
+        expect(mockWriteItems).not.toHaveBeenCalled();
+      });
+
+      it('sends the items of a write with a bit array one at a time, so none undoes another', async () => {
+        // DB3 as the PLC holds it: reads come from it and writes change it
+        const db = Buffer.from([0x40]);
+        mockReadAllItems.mockImplementation((cb: Function) => {
+          const addr = mockAddItems.mock.calls[mockAddItems.mock.calls.length - 1][0];
+          cb(undefined, { [addr]: [...db] });
+        });
+        mockWriteItems.mockImplementation((names: string[], values: unknown[], cb: Function) => {
+          names.forEach((name, i) => {
+            const bit = /^DB3,X0\.(\d)$/.exec(name);
+            if (bit) db[0] = values[i] ? db[0] | (1 << Number(bit[1])) : db[0] & ~(1 << Number(bit[1]));
+            else if (name === 'DB3,BYTE0') db[0] = values[i] as number;
+            else throw new Error(`unexpected ${name}`);
+          });
+          cb();
+        });
+
+        await backend.write([
+          { name: 'a', address: { area: 'DB', dbNumber: 3, dataType: 'BOOL', offset: 0, bitOffset: 5 }, value: true },
+          { name: 'b', address: bits('DB', 0, 0, 4), value: Array(4).fill(true) },
+          { name: 'c', address: bits('DB', 0, 2, 2), value: [false, false] },
+        ]);
+
+        expect(mockWriteItems.mock.calls.map((c) => c[0])).toEqual([['DB3,X0.5'], ['DB3,BYTE0'], ['DB3,BYTE0']]);
+        expect(db[0]).toBe(0x63); // bit 6 kept, bit 5 and bits 0-1 set, bits 2-3 cleared again
+      });
+    });
   });
 
   describe('browse methods', () => {
