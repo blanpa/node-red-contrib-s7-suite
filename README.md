@@ -71,6 +71,8 @@ What the numbers after the offset mean depends on the type:
 
 An address with a length reads as an array and is written from an array of exactly that many values; a byte array also accepts a `Buffer`.
 
+Writing bits changes only those bits. For a bit array, both backends read the bytes the bits are in and write them back with the other bits as they were. That is two requests, so if the PLC program changes another bit in those bytes between them, that change is overwritten.
+
 | Type | Size | Value in Node-RED | nodes7 backend |
 |------|------|-------------------|----------------|
 | `BOOL` / `X` | 1 bit | boolean | ✓ |
