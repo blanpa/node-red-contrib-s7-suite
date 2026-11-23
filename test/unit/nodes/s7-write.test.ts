@@ -883,6 +883,36 @@ describe('s7-write node', () => {
         expect(send).not.toHaveBeenCalled();
       });
 
+      // The editor keeps a named field whose offset was left empty and saves it without one (#83).
+      // It must not be written at offset 0.
+      it('reports a schema field saved without an offset and writes nothing', async () => {
+        const node = createNodeContext();
+        constructorFn.call(node, {
+          id: 'write1',
+          type: 's7-write',
+          server: 'config1',
+          address: 'DB1,BYTE0',
+          mode: 'struct',
+          schema: JSON.stringify([
+            { name: 'temp', type: 'REAL', offset: 0 },
+            { name: 'count', type: 'INT' },
+          ]),
+        });
+
+        const send = jest.fn();
+        const done = jest.fn();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inputHandler = (node as any).listeners('input')[0];
+        await inputHandler({ _msgid: '123', payload: { temp: 25.5, count: 7 } }, send, done);
+
+        expect(done).toHaveBeenCalledWith(expect.any(Error));
+        expect(done.mock.calls[0][0].message).toBe('Schema field "count" has invalid offset: undefined');
+        expect(send).not.toHaveBeenCalled();
+        expect(mockBackend.rawReadCalls).toHaveLength(0);
+        expect(mockBackend.writeCalls).toHaveLength(0);
+      });
+
       it('errors when schema field has invalid offset', async () => {
         const badSchema = JSON.stringify([
           { name: 'field1', type: 'REAL', offset: -1 },
